@@ -1,4 +1,4 @@
-import { registryFixtures } from '@/lib/fixtures'
+import { getRegistryResources } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
 import type { RegistryStatus, Classification, DeletionStrategy } from '@/lib/fixtures'
 
@@ -20,13 +20,14 @@ const classificationStyles: Record<Classification, string> = {
   LOW: 'text-gray-500',
 }
 
-export default function RegistryPage() {
+export default async function RegistryPage() {
+  const registryResources = await getRegistryResources()
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Registry</h1>
         <p className="mt-1 text-sm text-gray-500">
-          PII resources declared across connected systems. {registryFixtures.length} resources
+          PII resources declared across connected systems. {registryResources.length} resources
           registered.
         </p>
       </div>
@@ -56,7 +57,7 @@ export default function RegistryPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {registryFixtures.map((resource) => (
+            {registryResources.map((resource) => (
               <tr key={resource.resourceId} className="hover:bg-gray-50/50">
                 <td className="px-5 py-3">
                   <p className="text-sm font-medium text-gray-900">

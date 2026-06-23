@@ -1,4 +1,4 @@
-import { proofFixture } from '@/lib/fixtures'
+import { getCertificate, getLineageEvents } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
 
 function formatTs(ts: string) {
@@ -16,9 +16,18 @@ const eventStyles: Record<string, string> = {
   CERTIFICATE_ISSUED: 'bg-indigo-100 text-indigo-700',
 }
 
-export default function ProofPage() {
-  const { userId, deletionRequestId, affectedSystems, certificate, auditTrail } =
-    proofFixture
+export default async function ProofPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ userId?: string }>
+}) {
+  const { userId: queryUserId } = await searchParams
+  const userId = queryUserId ?? 'user_8821'
+  const [proof, auditTrail] = await Promise.all([
+    getCertificate(userId),
+    getLineageEvents(userId),
+  ])
+  const { deletionRequestId, affectedSystems, certificate } = proof
 
   const truncatedJwt =
     certificate.jwt.length > 80

@@ -1,4 +1,4 @@
-import { overviewFixture, registryFixtures, ghostDataFixtures } from '@/lib/fixtures'
+import { getOverview } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
 
 function StatCard({
@@ -26,11 +26,11 @@ function formatTs(ts: string) {
   })
 }
 
-export default function OverviewPage() {
-  const { registryCount, policyStatus, ghostFindingCount, lastDeletionProof } =
-    overviewFixture
+export default async function OverviewPage() {
+  const { registryCount, policyStatus, ghostFindingCount, lastDeletionProof, _resources } =
+    await getOverview()
 
-  const highClassCount = registryFixtures.filter(
+  const highClassCount = _resources.filter(
     (r) => r.classification === 'HIGH'
   ).length
 
