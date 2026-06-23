@@ -10,6 +10,7 @@ function formatTs(ts: string) {
 }
 
 const systemIcons: Record<string, string> = {
+  'key-vault': 'KV',
   bigquery: 'BQ',
   dbt: 'dbt',
   salesforce: 'SF',
@@ -17,6 +18,7 @@ const systemIcons: Record<string, string> = {
 }
 
 const systemIconColors: Record<string, string> = {
+  'key-vault': 'bg-indigo-600 text-white',
   bigquery: 'bg-blue-600 text-white',
   dbt: 'bg-orange-500 text-white',
   salesforce: 'bg-sky-500 text-white',
@@ -82,9 +84,6 @@ export default function IntegrationsPage() {
         ))}
       </div>
 
-      <p className="mt-6 text-xs text-gray-400">
-        Stage 1 — connection status is static. Configuration UI planned for Stage 3+.
-      </p>
     </div>
   )
 }

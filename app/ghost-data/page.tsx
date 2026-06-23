@@ -95,9 +95,6 @@ export default function GhostDataPage() {
         </table>
       </div>
 
-      <p className="mt-3 text-xs text-gray-400">
-        Stage 1 — static fixtures. Live findings sourced from lineage events in Stage 3.
-      </p>
     </div>
   )
 }

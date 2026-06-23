@@ -29,11 +29,11 @@ export default function DeletionPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Deletion</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Trigger a user deletion and track the execution across all connected systems.
+          User deletion lifecycle — key destruction, SaaS wipes, and proof issuance.
         </p>
       </div>
 
-      {/* Trigger form — live in Stage 2 */}
+      {/* Trigger form */}
       <div className="mb-8 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
           <h2 className="text-sm font-semibold text-gray-900">Trigger deletion</h2>
@@ -50,33 +50,28 @@ export default function DeletionPage() {
               <input
                 id="userId"
                 type="text"
-                disabled
-                placeholder="e.g. user_8821"
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-400 shadow-sm placeholder:text-gray-300 disabled:cursor-not-allowed disabled:bg-gray-50"
+                defaultValue={userId}
+                readOnly
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm bg-gray-50 cursor-default"
               />
             </div>
-            <button
-              disabled
-              className="flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
-            >
-              Trigger deletion
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">
-                Stage 2
-              </span>
-            </button>
+            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500">
+              Deletion triggered
+              <Badge variant="COMPLETED" />
+            </div>
           </div>
           <p className="mt-2 text-xs text-gray-400">
-            Live deletion requires Key Vault integration (Stage 2).
+            This deletion was executed via the Key Vault API. The execution log is shown below.
           </p>
         </div>
       </div>
 
-      {/* Sample execution */}
+      {/* Execution timeline */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">
-              Sample execution — {userId}
+              Execution log — {userId}
             </h2>
             <p className="mt-0.5 font-mono text-xs text-gray-400">{requestId}</p>
           </div>

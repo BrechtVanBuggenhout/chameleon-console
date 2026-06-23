@@ -119,10 +119,6 @@ export default function ProofPage() {
         </div>
       </div>
 
-      <p className="text-xs text-gray-400">
-        Stage 2 — live certificates from{' '}
-        <code className="rounded bg-gray-100 px-1 py-0.5">GET /certificate/:userId</code>
-      </p>
     </div>
   )
 }

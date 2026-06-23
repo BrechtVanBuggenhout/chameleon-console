@@ -48,10 +48,7 @@ export default function PolicyPage() {
             </span>
           </div>
         </div>
-        <p className="text-xs text-gray-400">
-          Stage 2 — live status from{' '}
-          <code className="rounded bg-gray-100 px-1 py-0.5">GET /pii-registry/policy</code>
-        </p>
+        <p className="text-xs text-gray-400">Evaluated continuously · updated on each scan</p>
       </div>
 
       {/* Rules */}

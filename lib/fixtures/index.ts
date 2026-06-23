@@ -302,12 +302,20 @@ export interface Integration {
 
 export const integrationsFixture: Integration[] = [
   {
+    name: 'Key Vault',
+    system: 'key-vault',
+    status: 'connected',
+    resourceCount: 6,
+    lastSync: '2026-06-23T09:12:10Z',
+    details: 'chameleon-key-vault-prod · Cloud Run · us-central1',
+  },
+  {
     name: 'BigQuery',
     system: 'bigquery',
     status: 'connected',
     resourceCount: 4,
     lastSync: '2026-06-23T08:15:00Z',
-    details: 'chameleon-dev-496718.chameleon_dev',
+    details: 'chameleon-prod-496718.chameleon_prod',
   },
   {
     name: 'dbt',

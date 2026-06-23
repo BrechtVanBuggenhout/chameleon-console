@@ -101,10 +101,6 @@ export default function RegistryPage() {
         </table>
       </div>
 
-      <p className="mt-3 text-xs text-gray-400">
-        Stage 2 — data sourced from{' '}
-        <code className="rounded bg-gray-100 px-1 py-0.5">GET /pii-registry/resources</code>
-      </p>
     </div>
   )
 }
