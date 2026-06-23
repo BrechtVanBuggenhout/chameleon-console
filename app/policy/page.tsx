@@ -1,4 +1,4 @@
-import { policyFixture } from '@/lib/fixtures'
+import { getPolicy } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
 import type { PolicyStatus, RuleStatus } from '@/lib/fixtures'
 
@@ -21,8 +21,8 @@ const ruleStatusTextColor: Record<RuleStatus, string> = {
   FAIL: 'text-red-700',
 }
 
-export default function PolicyPage() {
-  const { status, evaluatedAt, rules } = policyFixture
+export default async function PolicyPage() {
+  const { status, evaluatedAt, rules } = await getPolicy()
   const passingCount = rules.filter((r) => r.status === 'PASS').length
 
   return (

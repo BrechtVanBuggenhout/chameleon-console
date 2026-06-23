@@ -1,4 +1,4 @@
-import { ghostDataFixtures } from '@/lib/fixtures'
+import { ghostDataFixtures } from '@/lib/vault-api'
 
 const actionLabels: Record<string, { label: string; style: string }> = {
   register_column: {
