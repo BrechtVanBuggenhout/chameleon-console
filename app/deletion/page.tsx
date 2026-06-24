@@ -129,7 +129,7 @@ export default function DeletionPage() {
       // Step 1 — create deletion request
       patchStep('create', { status: 'running' })
       const t1 = Date.now()
-      const operationId = `demo-${userId}-${Date.now()}`
+      const operationId = crypto.randomUUID()
       const createRes = await fetch('/api/deletion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
