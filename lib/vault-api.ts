@@ -36,17 +36,57 @@ export async function getRegistryResources(): Promise<RegistryResource[]> {
   // KV returns { resources: [...] }
   const resources = Array.isArray(data) ? data : (data.resources ?? [])
   if (!resources.length) return registryFixtures
-  return resources.map((r: Record<string, unknown>) => ({
-    resourceId: r.resourceId ?? r.resource_id ?? '',
-    system: r.system ?? r.ownerConnector ?? 'bigquery',
-    displayName: r.displayName ?? r.display_name ?? r.resourceId ?? '',
-    piiColumns: Array.isArray(r.piiColumns) ? r.piiColumns : (r.pii_columns ?? []),
-    deletionStrategy: r.deletionStrategy ?? r.deletion_strategy ?? 'key_destroy',
-    classification: r.classification ?? 'MEDIUM',
-    status: r.status ?? 'declared',
-    scanEnabled: r.scanEnabled ?? r.scan_enabled ?? false,
-    ownerConnector: r.ownerConnector ?? r.owner_connector ?? 'pipelines',
-  }))
+  return resources.map((r: Record<string, unknown>) => {
+    // KV uses piiFields; fixtures use piiColumns — normalise to piiColumns for the UI
+    const rawFields = Array.isArray(r.piiFields) ? r.piiFields
+      : Array.isArray(r.piiColumns) ? r.piiColumns
+      : []
+    const piiColumns = (rawFields as Record<string, unknown>[]).map(f => ({
+      name: String(f.name ?? ''),
+      classification: String(f.classification ?? ''),
+    }))
+
+    // KV uses SCREAMING_SNAKE (CRYPTO_SHRED, EXTERNAL_WIPE, MANUAL_REVIEW)
+    // UI expects key_destroy | row_delete | saas_wipe
+    const strategyRaw = String(r.deletionStrategy ?? r.deletion_strategy ?? 'key_destroy')
+    const deletionStrategy = (
+      strategyRaw === 'CRYPTO_SHRED' ? 'key_destroy'
+      : strategyRaw === 'EXTERNAL_WIPE' ? 'saas_wipe'
+      : strategyRaw === 'MANUAL_REVIEW' ? 'row_delete'
+      : strategyRaw
+    ) as 'key_destroy' | 'row_delete' | 'saas_wipe'
+
+    // Derive classification from the most sensitive piiField present
+    const classificationRank: Record<string, number> = {
+      DIRECT_IDENTIFIER: 3, SENSITIVE: 3, CONTACT: 2,
+      QUASI_IDENTIFIER: 2, BEHAVIORAL: 1, SYSTEM_IDENTIFIER: 0,
+    }
+    const topClass = piiColumns.reduce((best, col) => {
+      return (classificationRank[col.classification] ?? 0) > (classificationRank[best] ?? 0)
+        ? col.classification : best
+    }, 'SYSTEM_IDENTIFIER')
+    const classification = (
+      topClass === 'DIRECT_IDENTIFIER' || topClass === 'SENSITIVE' ? 'HIGH'
+      : topClass === 'CONTACT' || topClass === 'QUASI_IDENTIFIER' || topClass === 'BEHAVIORAL' ? 'MEDIUM'
+      : 'LOW'
+    ) as 'HIGH' | 'MEDIUM' | 'LOW'
+
+    const resourceId = String(r.resourceId ?? r.resource_id ?? '')
+    // Display name: last segment after the final dot
+    const displayName = String(r.displayName ?? r.display_name ?? resourceId.split('.').pop() ?? resourceId)
+
+    return {
+      resourceId,
+      system: String(r.system ?? r.ownerConnector ?? 'bigquery'),
+      displayName,
+      piiColumns,
+      deletionStrategy,
+      classification,
+      status: String(r.status ?? 'declared') as 'declared' | 'ghost' | 'policy_warning',
+      scanEnabled: Boolean(r.scanEnabled ?? r.scan_enabled ?? false),
+      ownerConnector: String(r.ownerConnector ?? r.owner_connector ?? 'pipelines'),
+    }
+  })
 }
 
 export async function getPolicy(): Promise<typeof policyFixture> {
@@ -62,17 +102,33 @@ export async function getPolicy(): Promise<typeof policyFixture> {
 export async function getCertificate(userId: string): Promise<typeof proofFixture> {
   const data = await kvFetch(`/certificate/${userId}`)
   if (!data) return proofFixture
+
+  // KV returns { certificate: "<jwt>", tenantId, userId, timestamp }
+  // Decode the JWT payload (middle segment) to get claims
+  const jwt = String(data.certificate ?? data.jwt ?? '')
+  let claims: Record<string, unknown> = {}
+  if (jwt) {
+    try {
+      claims = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString())
+    } catch { /* leave claims empty, fall back to fixture values */ }
+  }
+
+  const lineage = Array.isArray(claims.lineageSummary) ? claims.lineageSummary as { system: string }[] : []
+  const affectedSystems = lineage.length
+    ? lineage.map(l => l.system)
+    : (proofFixture.affectedSystems as string[])
+
   return {
     userId,
-    deletionRequestId: data.deletionRequestId ?? data.deletion_request_id ?? proofFixture.deletionRequestId,
-    affectedSystems: (data.affectedSystems ?? data.affected_systems ?? proofFixture.affectedSystems) as string[],
+    deletionRequestId: String(claims.jti ?? proofFixture.deletionRequestId),
+    affectedSystems,
     certificate: {
-      issuer: data.issuer ?? proofFixture.certificate.issuer,
-      issuedAt: data.issuedAt ?? data.issued_at ?? proofFixture.certificate.issuedAt,
-      status: (data.status ?? proofFixture.certificate.status) as 'CERTIFIED',
-      keyFingerprint: data.keyFingerprint ?? data.key_fingerprint ?? proofFixture.certificate.keyFingerprint,
-      shredDate: data.shredDate ?? data.shred_date ?? proofFixture.certificate.shredDate,
-      jwt: data.jwt ?? data.token ?? proofFixture.certificate.jwt,
+      issuer: String(claims.iss ?? 'Chameleon Key Vault'),
+      issuedAt: new Date((Number(claims.iat ?? 0)) * 1000).toISOString() || proofFixture.certificate.issuedAt,
+      status: 'CERTIFIED' as const,
+      keyFingerprint: String(claims.keyFingerprint ?? proofFixture.certificate.keyFingerprint),
+      shredDate: String(claims.shredDate ?? claims.shred_date ?? proofFixture.certificate.shredDate),
+      jwt,
     },
     auditTrail: proofFixture.auditTrail,
   }
