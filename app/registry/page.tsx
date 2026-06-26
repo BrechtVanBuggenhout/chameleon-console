@@ -52,6 +52,9 @@ export default async function RegistryPage() {
                 Classification
               </th>
               <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                Owner
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                 Status
               </th>
             </tr>
@@ -91,6 +94,11 @@ export default async function RegistryPage() {
                     className={`text-sm ${classificationStyles[resource.classification]}`}
                   >
                     {resource.classification}
+                  </span>
+                </td>
+                <td className="px-5 py-3">
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">
+                    {resource.ownerConnector}
                   </span>
                 </td>
                 <td className="px-5 py-3">

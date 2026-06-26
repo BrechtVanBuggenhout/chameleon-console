@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
+const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
 
 export async function POST(req: NextRequest) {
   if (!VAULT_BASE_URL) {
@@ -10,9 +11,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const tenantId = req.headers.get('x-tenant-id') ?? 'default-tenant'
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-tenant-id': tenantId }
+  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
+
   const res = await fetch(`${VAULT_BASE_URL}/deletion-requests`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantId },
+    headers,
     body: JSON.stringify(body),
   })
 

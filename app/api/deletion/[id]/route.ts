@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
+const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
+
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra }
+  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
+  return headers
+}
 
 export async function GET(
   _req: NextRequest,
@@ -12,7 +19,7 @@ export async function GET(
 
   const { id } = await params
   const res = await fetch(`${VAULT_BASE_URL}/deletion-requests/${id}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     cache: 'no-store',
   })
 
@@ -34,7 +41,7 @@ export async function POST(
 
   const res = await fetch(`${VAULT_BASE_URL}/deletion-requests/${id}/advance`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantId },
+    headers: authHeaders({ 'x-tenant-id': tenantId }),
     body: JSON.stringify(body),
   })
 

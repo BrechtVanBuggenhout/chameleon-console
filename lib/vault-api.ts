@@ -89,35 +89,81 @@ export async function getRegistryResources(): Promise<RegistryResource[]> {
   })
 }
 
-export async function getPolicy(): Promise<typeof policyFixture> {
+export type PolicyIssue = {
+  code: string
+  severity: 'WARNING' | 'INFO' | 'ERROR'
+  resourceId: string
+  message: string
+}
+
+export type ResourceEvaluation = {
+  resourceId: string
+  displayName: string
+  status: 'PASS' | 'WARN' | 'FAIL'
+  issues: PolicyIssue[]
+}
+
+export type LivePolicy = {
+  status: 'PASS' | 'WARN' | 'FAIL'
+  evaluatedAt: string
+  evaluations: ResourceEvaluation[]
+  passingCount: number
+  warnCount: number
+  failCount: number
+}
+
+export async function getPolicy(): Promise<LivePolicy> {
   const data = await kvFetch('/pii-registry/policy')
-  if (!data) return policyFixture
+
+  if (!data || !Array.isArray(data.evaluations)) {
+    // Derive from fixture so the shape is consistent
+    const evals = policyFixture.rules.map(r => ({
+      resourceId: r.id,
+      displayName: r.name,
+      status: r.status as 'PASS' | 'WARN' | 'FAIL',
+      issues: r.status !== 'PASS'
+        ? [{ code: r.id.toUpperCase(), severity: 'WARNING' as const, resourceId: r.id, message: r.message }]
+        : [],
+    }))
+    return {
+      status: policyFixture.status as 'PASS' | 'WARN' | 'FAIL',
+      evaluatedAt: policyFixture.evaluatedAt,
+      evaluations: evals,
+      passingCount: evals.filter(e => e.status === 'PASS').length,
+      warnCount: evals.filter(e => e.status === 'WARN').length,
+      failCount: evals.filter(e => e.status === 'FAIL').length,
+    }
+  }
+
+  const evals: ResourceEvaluation[] = (data.evaluations as Record<string, unknown>[]).map(e => ({
+    resourceId: String(e.resourceId ?? ''),
+    displayName: String(e.resourceId ?? '').split('.').pop() ?? String(e.resourceId ?? ''),
+    status: (e.status as 'PASS' | 'WARN' | 'FAIL') ?? 'PASS',
+    issues: Array.isArray(e.issues) ? (e.issues as PolicyIssue[]) : [],
+  }))
+
   return {
-    status: (data.status ?? policyFixture.status) as typeof policyFixture.status,
-    evaluatedAt: data.evaluatedAt ?? data.evaluated_at ?? policyFixture.evaluatedAt,
-    rules: (Array.isArray(data.rules) && data.rules.length ? data.rules : policyFixture.rules) as typeof policyFixture.rules,
+    status: (data.status as 'PASS' | 'WARN' | 'FAIL') ?? 'PASS',
+    evaluatedAt: String(data.timestamp ?? data.evaluatedAt ?? new Date().toISOString()),
+    evaluations: evals,
+    passingCount: evals.filter(e => e.status === 'PASS').length,
+    warnCount: evals.filter(e => e.status === 'WARN').length,
+    failCount: evals.filter(e => e.status === 'FAIL').length,
   }
 }
 
-export async function getCertificate(userId: string): Promise<typeof proofFixture> {
-  const data = await kvFetch(`/certificate/${userId}`)
-  if (!data) return proofFixture
+const DEMO_USER_IDS = ['usr-001', 'usr-002', 'usr-003', 'usr-004', 'usr-005']
 
-  // KV returns { certificate: "<jwt>", tenantId, userId, timestamp }
-  // Decode the JWT payload (middle segment) to get claims
+async function parseCertificate(userId: string, data: Record<string, unknown>): Promise<typeof proofFixture> {
   const jwt = String(data.certificate ?? data.jwt ?? '')
   let claims: Record<string, unknown> = {}
   if (jwt) {
     try {
       claims = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString())
-    } catch { /* leave claims empty, fall back to fixture values */ }
+    } catch { /* leave claims empty */ }
   }
-
   const lineage = Array.isArray(claims.lineageSummary) ? claims.lineageSummary as { system: string }[] : []
-  const affectedSystems = lineage.length
-    ? lineage.map(l => l.system)
-    : (proofFixture.affectedSystems as string[])
-
+  const affectedSystems = lineage.length ? lineage.map(l => l.system) : (proofFixture.affectedSystems as string[])
   return {
     userId,
     deletionRequestId: String(claims.jti ?? proofFixture.deletionRequestId),
@@ -132,6 +178,22 @@ export async function getCertificate(userId: string): Promise<typeof proofFixtur
     },
     auditTrail: proofFixture.auditTrail,
   }
+}
+
+export async function findLatestCertificate(): Promise<{ proof: typeof proofFixture; userId: string } | null> {
+  for (const uid of DEMO_USER_IDS) {
+    const data = await kvFetch(`/certificate/${uid}`)
+    if (data && data.certificate) {
+      return { proof: await parseCertificate(uid, data as Record<string, unknown>), userId: uid }
+    }
+  }
+  return null
+}
+
+export async function getCertificate(userId: string): Promise<typeof proofFixture> {
+  const data = await kvFetch(`/certificate/${userId}`)
+  if (!data) return proofFixture
+  return parseCertificate(userId, data as Record<string, unknown>)
 }
 
 export async function getLineageEvents(userId: string): Promise<typeof proofFixture.auditTrail> {

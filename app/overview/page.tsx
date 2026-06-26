@@ -1,4 +1,4 @@
-import { getOverview } from '@/lib/vault-api'
+import { getOverview, getPolicy } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
 
 function StatCard({
@@ -27,12 +27,18 @@ function formatTs(ts: string) {
 }
 
 export default async function OverviewPage() {
-  const { registryCount, policyStatus, ghostFindingCount, lastDeletionProof, _resources } =
-    await getOverview()
+  const [overview, policy] = await Promise.all([getOverview(), getPolicy()])
+  const { registryCount, policyStatus, ghostFindingCount, lastDeletionProof, _resources } = overview
 
-  const highClassCount = _resources.filter(
-    (r) => r.classification === 'HIGH'
-  ).length
+  const highClassCount = _resources.filter((r) => r.classification === 'HIGH').length
+  const systems = [...new Set(_resources.map((r) => r.system))].join(', ')
+  const warnResources = policy.evaluations.filter(e => e.status === 'WARN' || e.status === 'FAIL')
+  const policyDetail =
+    policy.failCount > 0
+      ? `${policy.failCount} resource${policy.failCount > 1 ? 's' : ''} failing`
+      : policy.warnCount > 0
+      ? `${policy.warnCount} resource${policy.warnCount > 1 ? 's' : ''} need${policy.warnCount === 1 ? 's' : ''} attention`
+      : 'All resources passing'
 
   return (
     <div>
@@ -53,7 +59,7 @@ export default async function OverviewPage() {
         <StatCard
           label="Policy status"
           value={policyStatus}
-          sub="1 rule in warning state"
+          sub={policyDetail}
         />
         <StatCard
           label="Ghost findings"
@@ -95,7 +101,7 @@ export default async function OverviewPage() {
                 <Badge variant="PASS" />
               </td>
               <td className="px-5 py-3 text-sm text-gray-500">
-                {registryCount} resources registered across BigQuery, Salesforce, HubSpot
+                {registryCount} resources registered across {systems || 'bigquery'}
               </td>
             </tr>
             <tr>
@@ -117,7 +123,7 @@ export default async function OverviewPage() {
                 <Badge variant={policyStatus} />
               </td>
               <td className="px-5 py-3 text-sm text-gray-500">
-                3 of 4 policy rules passing; ghost data causing warning
+                {policy.passingCount} of {policy.evaluations.length} resources passing{warnResources.length > 0 ? ` · ${warnResources.map(e => e.displayName).join(', ')}` : ''}
               </td>
             </tr>
             <tr>
