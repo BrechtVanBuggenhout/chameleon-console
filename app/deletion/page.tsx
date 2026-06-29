@@ -136,7 +136,10 @@ export default function DeletionPage() {
         body: JSON.stringify({ userId, operationId }),
       })
       if (!createRes.ok) {
-        const err = (await createRes.json().catch(() => ({}))) as { message?: string }
+        const err = (await createRes.json().catch(() => ({}))) as { message?: string; statusCode?: number }
+        if (createRes.status === 409) {
+          throw new Error(`A deletion is already in progress for ${userId}. Check the Proof page for its status.`)
+        }
         throw new Error(err.message ?? 'Failed to create deletion request')
       }
       const created = (await createRes.json()) as { deletionRequestId?: string; deletion_request_id?: string }
