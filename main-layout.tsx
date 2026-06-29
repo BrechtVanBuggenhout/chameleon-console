@@ -22,9 +22,33 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <aside className="flex w-60 flex-shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
         {/* Brand */}
         <div className="flex items-center gap-2.5 border-b border-gray-100 px-4 py-4 dark:border-gray-800">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-xs font-bold text-white dark:bg-white dark:text-gray-900">
-            C
-          </div>
+          <svg width="28" height="28" viewBox="0 0 158 118" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ flex: "none" }}>
+            <defs>
+              <linearGradient id="con-g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#62C53C"/>
+                <stop offset="100%" stopColor="#15A082"/>
+              </linearGradient>
+              <linearGradient id="con-g2" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#62C53C"/>
+                <stop offset="100%" stopColor="#3FB463"/>
+              </linearGradient>
+            </defs>
+            <rect x="76" y="34" width="76" height="76" rx="24" fill="url(#con-g1)"/>
+            <rect x="88" y="30" width="22" height="22" rx="7" fill="url(#con-g2)" opacity=".95"/>
+            <rect x="64" y="18" width="20" height="20" rx="6" fill="#5BC740" opacity=".88"/>
+            <rect x="90" y="6"  width="15" height="15" rx="5" fill="#6CCF44" opacity=".74"/>
+            <rect x="44" y="30" width="18" height="18" rx="6" fill="#74D446" opacity=".68"/>
+            <rect x="78" y="54" width="13" height="13" rx="5" fill="#3FBE74" opacity=".58"/>
+            <rect x="66" y="0"  width="14" height="14" rx="5" fill="#82DC49" opacity=".62"/>
+            <rect x="28" y="18" width="14" height="14" rx="5" fill="#8FE74E" opacity=".52"/>
+            <rect x="48" y="8"  width="12" height="12" rx="4" fill="#97ED50" opacity=".48"/>
+            <rect x="50" y="50" width="10" height="10" rx="4" fill="#5FD088" opacity=".44"/>
+            <rect x="14" y="6"  width="11" height="11" rx="4" fill="#9DF453" opacity=".40"/>
+            <rect x="30" y="44" width="9"  height="9"  rx="3" fill="#a3ff57" opacity=".42"/>
+            <rect x="2"  y="24" width="9"  height="9"  rx="3" fill="#a3ff57" opacity=".32"/>
+            <rect x="16" y="50" width="7"  height="7"  rx="3" fill="#a3ff57" opacity=".24"/>
+            <rect x="0"  y="46" width="6"  height="6"  rx="2" fill="#a3ff57" opacity=".16"/>
+          </svg>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 dark:text-gray-50">Chameleon</p>
             <p className="text-xs text-gray-400">Demo console</p>
