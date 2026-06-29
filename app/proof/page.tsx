@@ -64,7 +64,7 @@ export default async function ProofPage({
     }
     userId = latest.userId
     proof = latest.proof
-    auditTrail = proof.auditTrail
+    auditTrail = await getLineageEvents(latest.userId)
   }
 
   const { deletionRequestId, affectedSystems, certificate } = proof!
