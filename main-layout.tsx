@@ -83,13 +83,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         {/* Footer */}
         <div className="border-t border-gray-100 p-3 dark:border-gray-800">
           <a
-            href="https://chameleondata.io"
+            href="https://chameleon-data.com"
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 rounded-md px-2.5 py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
             <span>↗</span>
-            chameleondata.io
+            chameleon-data.com
           </a>
         </div>
       </aside>
