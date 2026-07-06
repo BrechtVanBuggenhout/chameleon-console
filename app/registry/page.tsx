@@ -1,6 +1,7 @@
 import { getRegistryResources } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
 import type { RegistryStatus, Classification, DeletionStrategy } from '@/lib/fixtures'
+import { RegistryHeader } from './registry-header'
 
 const systemLabels: Record<string, string> = {
   bigquery: 'BigQuery',
@@ -24,13 +25,7 @@ export default async function RegistryPage() {
   const registryResources = await getRegistryResources()
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Registry</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          PII resources declared across connected systems. {registryResources.length} resources
-          registered.
-        </p>
-      </div>
+      <RegistryHeader resourceCount={registryResources.length} />
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
