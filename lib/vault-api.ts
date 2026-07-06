@@ -152,6 +152,51 @@ export async function getPolicy(): Promise<LivePolicy> {
   }
 }
 
+export type CoverageState = 'PROTECTED' | 'PARTIAL' | 'EXPOSED'
+
+export type CoverageItem = {
+  resourceId: string
+  system: string
+  state: CoverageState
+  weight: number
+  reasons: string[]
+}
+
+export type CoverageReport = {
+  score: number
+  counts: { protected: number; partial: number; exposed: number; total: number }
+  weights: { protected: number; partial: number; exposed: number; total: number }
+  items: CoverageItem[]
+  evaluatedAt: string
+}
+
+export async function getCoverage(): Promise<CoverageReport> {
+  const data = await kvFetch('/pii-registry/coverage')
+
+  if (!data || typeof data.score !== 'number') {
+    // Demo fallback so the gauge renders without a live Key Vault.
+    return {
+      score: 72,
+      counts: { protected: 3, partial: 2, exposed: 1, total: 6 },
+      weights: { protected: 8, partial: 5, exposed: 4, total: 17 },
+      items: [
+        { resourceId: 'bigquery:chameleon_dev.fivetran_hubspot.contacts', system: 'bigquery', state: 'EXPOSED', weight: 4, reasons: ['discovered but undeclared'] },
+        { resourceId: 'hubspot:contact', system: 'hubspot', state: 'PARTIAL', weight: 3, reasons: ['deletion strategy is EXTERNAL_WIPE, not CRYPTO_SHRED'] },
+        { resourceId: 'bigquery:chameleon_dev.stg_users', system: 'bigquery', state: 'PROTECTED', weight: 3, reasons: [] },
+      ],
+      evaluatedAt: new Date().toISOString(),
+    }
+  }
+
+  return {
+    score: data.score as number,
+    counts: data.counts as CoverageReport['counts'],
+    weights: data.weights as CoverageReport['weights'],
+    items: Array.isArray(data.items) ? (data.items as CoverageItem[]) : [],
+    evaluatedAt: String(data.timestamp ?? new Date().toISOString()),
+  }
+}
+
 const DEMO_USER_IDS = ['usr-001', 'usr-002', 'usr-003', 'usr-004', 'usr-005']
 
 async function parseCertificate(userId: string, data: Record<string, unknown>): Promise<typeof proofFixture> {

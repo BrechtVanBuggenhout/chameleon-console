@@ -1,5 +1,6 @@
-import { getOverview, getPolicy } from '@/lib/vault-api'
+import { getOverview, getPolicy, getCoverage } from '@/lib/vault-api'
 import { Badge } from '@/app/ui/badge'
+import { CoverageGauge } from '@/app/ui/coverage-gauge'
 
 function StatCard({
   label,
@@ -27,7 +28,7 @@ function formatTs(ts: string) {
 }
 
 export default async function OverviewPage() {
-  const [overview, policy] = await Promise.all([getOverview(), getPolicy()])
+  const [overview, policy, coverage] = await Promise.all([getOverview(), getPolicy(), getCoverage()])
   const { registryCount, policyStatus, ghostFindingCount, lastDeletionProof, _resources } = overview
 
   const highClassCount = _resources.filter((r) => r.classification === 'HIGH').length
@@ -47,6 +48,11 @@ export default async function OverviewPage() {
         <p className="mt-1 text-sm text-gray-500">
           Compliance posture across all five outcomes.
         </p>
+      </div>
+
+      {/* Crypto-shred coverage — the headline risk metric */}
+      <div className="mb-8">
+        <CoverageGauge coverage={coverage} />
       </div>
 
       {/* Stat cards */}
