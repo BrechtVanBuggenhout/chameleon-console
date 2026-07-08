@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
 const REGISTRY_WRITE_TOKEN = process.env.VAULT_REGISTRY_WRITE_TOKEN
+// Key Vault's global app auth (x-api-key). Writes must pass BOTH layers:
+// x-api-key for the app-wide hook, Bearer for the declare-route guard.
+const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
 
 function guard(): NextResponse | null {
   if (!VAULT_BASE_URL) {
@@ -14,11 +17,13 @@ function guard(): NextResponse | null {
 }
 
 function writeHeaders(tenantId: string): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-tenant-id': tenantId,
     Authorization: `Bearer ${REGISTRY_WRITE_TOKEN}`,
   }
+  if (VAULT_API_TOKEN) headers['x-api-key'] = VAULT_API_TOKEN
+  return headers
 }
 
 /** PUT /api/registry/resources/:resourceId — update an existing manual declaration. */
