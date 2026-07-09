@@ -70,7 +70,7 @@ export default async function OverviewPage() {
         <StatCard
           label="Ghost findings"
           value={ghostFindingCount}
-          sub="Undeclared PII detected"
+          sub={ghostFindingCount > 0 ? 'Undeclared PII detected' : 'No undeclared PII detected'}
         />
         <StatCard
           label="Last deletion proof"
@@ -115,10 +115,12 @@ export default async function OverviewPage() {
                 2 · Detect ghost data
               </td>
               <td className="px-5 py-3">
-                <Badge variant="WARN" />
+                <Badge variant={ghostFindingCount > 0 ? 'WARN' : 'PASS'} />
               </td>
               <td className="px-5 py-3 text-sm text-gray-500">
-                {ghostFindingCount} ghost findings — undeclared PII columns detected in warehouse
+                {ghostFindingCount > 0
+                  ? `${ghostFindingCount} ghost finding${ghostFindingCount !== 1 ? 's' : ''} — undeclared PII detected by the warehouse scan`
+                  : 'Warehouse scan found no undeclared PII'}
               </td>
             </tr>
             <tr>

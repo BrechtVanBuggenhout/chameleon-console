@@ -1,7 +1,6 @@
 import {
   overviewFixture,
   registryFixtures,
-  ghostDataFixtures,
   policyFixture,
   deletionFixture,
   proofFixture,
@@ -254,16 +253,34 @@ export async function getLineageEvents(userId: string): Promise<typeof proofFixt
   })) as typeof proofFixture.auditTrail
 }
 
+export type DiscoveryFinding = {
+  resourceId: string
+  system: string
+  registryStatus: 'UNREGISTERED' | 'DRIFTED'
+  columns: string[]
+  lastSeen: string
+}
+
+export async function getDiscoveryFindings(): Promise<DiscoveryFinding[]> {
+  const data = await kvFetch('/pii-registry/discovery')
+  if (!data || !Array.isArray(data.findings)) return []
+  return data.findings as DiscoveryFinding[]
+}
+
 export async function getOverview() {
-  const [resources, policy] = await Promise.all([getRegistryResources(), getPolicy()])
+  const [resources, policy, ghostFindings] = await Promise.all([
+    getRegistryResources(),
+    getPolicy(),
+    getDiscoveryFindings(),
+  ])
   return {
     registryCount: resources.length,
     policyStatus: policy.status,
-    ghostFindingCount: overviewFixture.ghostFindingCount,
+    ghostFindingCount: ghostFindings.length,
     lastDeletionProof: overviewFixture.lastDeletionProof,
     _resources: resources,
     _policyStatus: policy.status,
   }
 }
 
-export { ghostDataFixtures, deletionFixture, integrationsFixture }
+export { deletionFixture, integrationsFixture }
