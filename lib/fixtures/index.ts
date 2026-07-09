@@ -1,7 +1,6 @@
 export const overviewFixture = {
   registryCount: 6,
   policyStatus: 'WARN' as const,
-  ghostFindingCount: 3,
   lastDeletionProof: {
     userId: 'user_8821',
     timestamp: '2026-06-23T09:14:03Z',
@@ -114,36 +113,6 @@ export const registryFixtures: RegistryResource[] = [
     status: 'declared',
     scanEnabled: false,
     ownerConnector: 'pipelines',
-  },
-]
-
-export const ghostDataFixtures = [
-  {
-    id: 'ghost-001',
-    resource: 'bigquery:chameleon-dev.chameleon_dev.marketing_events',
-    displayName: 'marketing_events',
-    column: 'user_email',
-    pattern: 'EMAIL_PATTERN',
-    count: 14832,
-    recommendedAction: 'register_column' as const,
-  },
-  {
-    id: 'ghost-002',
-    resource: 'bigquery:chameleon-dev.chameleon_dev.analytics_sessions',
-    displayName: 'analytics_sessions',
-    column: 'raw_user_agent',
-    pattern: 'DEVICE_ID_PATTERN',
-    count: 891441,
-    recommendedAction: 'remove_source_data' as const,
-  },
-  {
-    id: 'ghost-003',
-    resource: 'bigquery:chameleon-dev.chameleon_dev.int_customer_metrics',
-    displayName: 'int_customer_metrics',
-    column: 'raw_email',
-    pattern: 'EMAIL_PATTERN',
-    count: 2901,
-    recommendedAction: 'register_column' as const,
   },
 ]
 
