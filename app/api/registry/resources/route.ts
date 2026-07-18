@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { TENANT_ID } from '@/lib/tenant'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
 // Dedicated shared secret for the PII declare API. Must equal the Key Vault's
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const tenantId = req.headers.get('x-tenant-id') ?? 'default-tenant'
+  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

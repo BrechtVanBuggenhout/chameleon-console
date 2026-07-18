@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { TENANT_ID } from '@/lib/tenant'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
 const REGISTRY_WRITE_TOKEN = process.env.VAULT_REGISTRY_WRITE_TOKEN
@@ -33,7 +34,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ reso
 
   const { resourceId } = await params
   const body = await req.json()
-  const tenantId = req.headers.get('x-tenant-id') ?? 'default-tenant'
+  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
   const res = await fetch(`${VAULT_BASE_URL}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'PUT',
@@ -51,7 +52,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
   if (blocked) return blocked
 
   const { resourceId } = await params
-  const tenantId = req.headers.get('x-tenant-id') ?? 'default-tenant'
+  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
   const res = await fetch(`${VAULT_BASE_URL}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'DELETE',

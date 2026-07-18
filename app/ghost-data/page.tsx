@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { DeclarePanel, type DeclareInitial } from '@/app/registry/declare-panel'
+import { TENANT_ID } from '@/lib/tenant'
 
 type DiscoveryFinding = {
   resourceId: string
@@ -35,7 +36,7 @@ export default function GhostDataPage() {
 
   const loadFindings = useCallback(async () => {
     try {
-      const res = await fetch('/api/registry/discovery', { headers: { 'x-tenant-id': 'default-tenant' } })
+      const res = await fetch('/api/registry/discovery', { headers: { 'x-tenant-id': TENANT_ID } })
       const data = await res.json()
       return Array.isArray(data.findings) ? (data.findings as DiscoveryFinding[]) : []
     } catch {
@@ -58,7 +59,7 @@ export default function GhostDataPage() {
 
   function declareFromFinding(finding: DiscoveryFinding) {
     setPanelInitial({
-      tenantId: 'default-tenant',
+      tenantId: TENANT_ID,
       resourceId: finding.resourceId,
       system: finding.system,
       resourceLayer: 'RAW',
