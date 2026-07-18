@@ -9,6 +9,7 @@ import {
 import type {
   RegistryResource,
 } from '@/lib/fixtures'
+import { TENANT_ID } from '@/lib/tenant'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
 const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
@@ -16,7 +17,7 @@ const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
 async function kvFetch(path: string) {
   if (!VAULT_BASE_URL) return null
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-tenant-id': TENANT_ID }
     if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
     const res = await fetch(`${VAULT_BASE_URL}${path}`, {
       headers,

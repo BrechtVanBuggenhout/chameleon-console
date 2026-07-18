@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { TENANT_ID } from '@/lib/tenant'
 
 const VAULT_BASE_URL = process.env.VAULT_BASE_URL
 const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
@@ -10,7 +11,7 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!VAULT_BASE_URL) {
@@ -18,8 +19,9 @@ export async function GET(
   }
 
   const { id } = await params
+  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
   const res = await fetch(`${VAULT_BASE_URL}/deletion-requests/${id}`, {
-    headers: authHeaders(),
+    headers: authHeaders({ 'x-tenant-id': tenantId }),
     cache: 'no-store',
   })
 
@@ -37,7 +39,7 @@ export async function POST(
 
   const { id } = await params
   const body = await req.json()
-  const tenantId = req.headers.get('x-tenant-id') ?? 'default-tenant'
+  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
   const res = await fetch(`${VAULT_BASE_URL}/deletion-requests/${id}/advance`, {
     method: 'POST',

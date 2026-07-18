@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { TENANT_ID } from '@/lib/tenant'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'error'
 
@@ -93,7 +94,7 @@ export default function DeletionPage() {
   async function advanceRequest(id: string, newStatus: string, operationId: string) {
     const res = await fetch(`/api/deletion/${id}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+      headers: { 'Content-Type': 'application/json', 'x-tenant-id': TENANT_ID },
       body: JSON.stringify({ newStatus, operationId }),
     })
     if (!res.ok) {
@@ -107,7 +108,7 @@ export default function DeletionPage() {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 1000))
-      const res = await fetch(`/api/deletion/${id}`, { cache: 'no-store' })
+      const res = await fetch(`/api/deletion/${id}`, { headers: { 'x-tenant-id': TENANT_ID }, cache: 'no-store' })
       if (!res.ok) continue
       const data = (await res.json()) as { status: string }
       if (data.status === 'CERTIFICATE_ISSUED') return data
@@ -132,7 +133,7 @@ export default function DeletionPage() {
       const operationId = crypto.randomUUID()
       const createRes = await fetch('/api/deletion', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': TENANT_ID },
         body: JSON.stringify({ userId, operationId }),
       })
       if (!createRes.ok) {

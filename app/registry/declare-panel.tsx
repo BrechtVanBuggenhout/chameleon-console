@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { TENANT_ID } from '@/lib/tenant'
 
 const SYSTEMS = ['bigquery', 'gcs', 'firestore', 'log', 'hubspot', 'salesforce', 'external'] as const
 const LAYERS = ['RAW', 'STAGING', 'INTERMEDIATE', 'MART', 'SAAS'] as const
@@ -63,7 +64,7 @@ export function DeclarePanel({
 
   // State is seeded once from `initial`; the parent remounts via `key` to re-seed
   // (avoids a set-state-in-effect sync). Pre-fills from a discovery finding when given.
-  const [tenantId, setTenantId] = useState(initial?.tenantId ?? 'default-tenant')
+  const [tenantId, setTenantId] = useState(initial?.tenantId ?? TENANT_ID)
   const [resourceId, setResourceId] = useState(initial?.resourceId ?? '')
   const [system, setSystem] = useState<string>(initial?.system ?? 'bigquery')
   const [resourceLayer, setResourceLayer] = useState<string>(initial?.resourceLayer ?? 'RAW')

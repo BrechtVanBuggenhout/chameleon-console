@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { DeclarePanel, type DeclareInitial } from './declare-panel'
+import { TENANT_ID } from '@/lib/tenant'
 
 type DiscoveryFinding = {
   resourceId: string
@@ -22,7 +23,7 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
 
   const loadFindings = useCallback(async () => {
     try {
-      const res = await fetch('/api/registry/discovery', { headers: { 'x-tenant-id': 'default-tenant' } })
+      const res = await fetch('/api/registry/discovery', { headers: { 'x-tenant-id': TENANT_ID } })
       const data = await res.json()
       return Array.isArray(data.findings) ? (data.findings as DiscoveryFinding[]) : []
     } catch {
@@ -54,7 +55,7 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
 
   function declareFromFinding(finding: DiscoveryFinding) {
     setInitial({
-      tenantId: 'default-tenant',
+      tenantId: TENANT_ID,
       resourceId: finding.resourceId,
       system: finding.system,
       resourceLayer: 'RAW',
