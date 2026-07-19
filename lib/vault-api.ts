@@ -4,7 +4,6 @@ import {
   policyFixture,
   deletionFixture,
   proofFixture,
-  integrationsFixture,
 } from '@/lib/fixtures'
 import type {
   RegistryResource,
@@ -32,10 +31,15 @@ async function kvFetch(path: string) {
 
 export async function getRegistryResources(): Promise<RegistryResource[]> {
   const data = await kvFetch('/pii-registry/resources')
+  // No response at all (VAULT_BASE_URL unset, fetch failed) — fall back to
+  // fixtures so the UI still renders in local/dev. A genuinely empty
+  // registry is a real, valid state (a fresh instance with nothing declared
+  // yet) and must NOT be masked as fixture data — a customer needs to see
+  // that their own registry is actually empty, not think they're looking at
+  // real connected integrations.
   if (!data) return registryFixtures
   // KV returns { resources: [...] }
   const resources = Array.isArray(data) ? data : (data.resources ?? [])
-  if (!resources.length) return registryFixtures
   return resources.map((r: Record<string, unknown>) => {
     // KV uses piiFields; fixtures use piiColumns — normalise to piiColumns for the UI
     const rawFields = Array.isArray(r.piiFields) ? r.piiFields
@@ -284,4 +288,4 @@ export async function getOverview() {
   }
 }
 
-export { deletionFixture, integrationsFixture }
+export { deletionFixture }
