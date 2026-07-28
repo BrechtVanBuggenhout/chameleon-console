@@ -71,6 +71,9 @@ export function DeclarePanel({
   const [error, setError] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[]>([])
   const [success, setSuccess] = useState<string | null>(null)
+  const [schemaColumns, setSchemaColumns] = useState<{ name: string; dataType: string }[] | null>(null)
+  const [schemaLoading, setSchemaLoading] = useState(false)
+  const [schemaError, setSchemaError] = useState<string | null>(null)
 
   // State is seeded once from `initial`; the parent remounts via `key` to re-seed
   // (avoids a set-state-in-effect sync). Pre-fills from a discovery finding, or from
@@ -93,6 +96,39 @@ export function DeclarePanel({
 
   function updateField(index: number, patch: Partial<Field>) {
     setFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)))
+  }
+
+  function addFieldFromSchema(columnName: string) {
+    setFields((prev) => {
+      if (prev.some((f) => f.name === columnName)) return prev
+      const inferred = inferField(columnName)
+      // Replace a single still-blank starter row rather than piling up alongside it.
+      if (prev.length === 1 && !prev[0].name.trim()) return [inferred]
+      return [...prev, inferred]
+    })
+  }
+
+  async function loadSchema() {
+    if (!resourceId.trim()) return
+    setSchemaLoading(true)
+    setSchemaError(null)
+    try {
+      const res = await fetch(`/api/registry/schema?resourceId=${encodeURIComponent(resourceId)}`, {
+        headers: { 'x-tenant-id': tenantId },
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSchemaError(data.error ?? 'Failed to load schema')
+        setSchemaColumns(null)
+        return
+      }
+      setSchemaColumns(data.columns ?? [])
+    } catch {
+      setSchemaError('Network error reaching the Key Vault')
+      setSchemaColumns(null)
+    } finally {
+      setSchemaLoading(false)
+    }
   }
 
   async function submit() {
@@ -174,14 +210,61 @@ export function DeclarePanel({
 
               <div>
                 <label className={labelCls}>Resource ID</label>
-                <input
-                  className={`${inputCls} font-mono ${isEdit ? 'bg-gray-50 text-gray-500' : ''}`}
-                  placeholder="bigquery:project.dataset.table"
-                  value={resourceId}
-                  onChange={(e) => setResourceId(e.target.value)}
-                  disabled={isEdit}
-                  title={isEdit ? "A resource's identity can't be changed — delete and re-declare instead." : undefined}
-                />
+                <div className="mt-1 flex gap-2">
+                  <input
+                    className={`${inputCls} mt-0 flex-1 font-mono ${isEdit ? 'bg-gray-50 text-gray-500' : ''}`}
+                    placeholder="bigquery:project.dataset.table"
+                    value={resourceId}
+                    onChange={(e) => {
+                      setResourceId(e.target.value)
+                      setSchemaColumns(null)
+                      setSchemaError(null)
+                    }}
+                    disabled={isEdit}
+                    title={isEdit ? "A resource's identity can't be changed — delete and re-declare instead." : undefined}
+                  />
+                  {system === 'bigquery' && (
+                    <button
+                      onClick={loadSchema}
+                      disabled={schemaLoading || !resourceId.trim()}
+                      className="shrink-0 rounded border border-gray-300 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      title="Fetch this table's real columns from BigQuery"
+                    >
+                      {schemaLoading ? 'Loading…' : 'Load columns'}
+                    </button>
+                  )}
+                </div>
+                {schemaError && <p className="mt-1 text-xs text-red-600">{schemaError}</p>}
+                {schemaColumns && (
+                  <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-2">
+                    <p className="mb-1.5 text-xs text-gray-500">
+                      {schemaColumns.length === 0
+                        ? 'No columns found — check the resource ID.'
+                        : 'Click a column to add it below:'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {schemaColumns.map((col) => {
+                        const added = fields.some((f) => f.name === col.name)
+                        return (
+                          <button
+                            key={col.name}
+                            onClick={() => addFieldFromSchema(col.name)}
+                            disabled={added}
+                            title={col.dataType}
+                            className={`rounded-full border px-2 py-0.5 font-mono text-xs ${
+                              added
+                                ? 'border-green-300 bg-green-50 text-green-700'
+                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                          >
+                            {added ? '✓ ' : '+ '}
+                            {col.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
