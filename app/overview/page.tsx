@@ -74,8 +74,8 @@ export default async function OverviewPage() {
         />
         <StatCard
           label="Last deletion proof"
-          value={lastDeletionProof.status}
-          sub={formatTs(lastDeletionProof.timestamp)}
+          value={lastDeletionProof?.status ?? '—'}
+          sub={lastDeletionProof ? formatTs(lastDeletionProof.timestamp) : 'No deletions yet'}
         />
       </div>
 
@@ -139,10 +139,12 @@ export default async function OverviewPage() {
                 4 · Execute deletion
               </td>
               <td className="px-5 py-3">
-                <Badge variant="PASS" />
+                <Badge variant={lastDeletionProof ? 'PASS' : 'PENDING'} />
               </td>
               <td className="px-5 py-3 text-sm text-gray-500">
-                Last deletion completed for {lastDeletionProof.userId} in under 15 seconds
+                {lastDeletionProof
+                  ? `Last deletion completed for ${lastDeletionProof.userId} in under 15 seconds`
+                  : 'No deletions run yet'}
               </td>
             </tr>
             <tr>
@@ -150,10 +152,12 @@ export default async function OverviewPage() {
                 5 · Prove deletion
               </td>
               <td className="px-5 py-3">
-                <Badge variant="CERTIFIED" />
+                <Badge variant={lastDeletionProof ? 'CERTIFIED' : 'PENDING'} />
               </td>
               <td className="px-5 py-3 text-sm text-gray-500">
-                Signed certificate issued at {formatTs(lastDeletionProof.timestamp)}
+                {lastDeletionProof
+                  ? `Signed certificate issued at ${formatTs(lastDeletionProof.timestamp)}`
+                  : 'No certificates issued yet'}
               </td>
             </tr>
           </tbody>

@@ -15,8 +15,6 @@ interface Step {
   durationMs?: number
 }
 
-const DEMO_USERS = ['usr-001', 'usr-002', 'usr-003', 'usr-004', 'usr-005']
-
 const systemColors: Record<string, string> = {
   'Key Vault': 'bg-indigo-100 text-indigo-700',
   BigQuery: 'bg-blue-100 text-blue-700',
@@ -214,20 +212,6 @@ export default function DeletionPage() {
             >
               {running ? 'Running…' : 'Trigger deletion'}
             </button>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-400">Demo users:</span>
-            {DEMO_USERS.map(u => (
-              <button
-                key={u}
-                onClick={() => setUserId(u)}
-                disabled={running}
-                className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
-              >
-                {u}
-              </button>
-            ))}
           </div>
 
           {error && (

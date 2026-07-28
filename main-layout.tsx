@@ -51,7 +51,6 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           </svg>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 dark:text-gray-50">Chameleon</p>
-            <p className="text-xs text-gray-400">Demo console</p>
           </div>
         </div>
 
@@ -101,7 +100,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             {navItems.find((n) => n.href === pathname)?.label ?? 'Console'}
           </p>
           <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-            Demo tenant · live
+            Live
           </span>
         </header>
 
