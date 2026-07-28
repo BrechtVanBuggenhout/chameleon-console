@@ -53,6 +53,25 @@ const EMPTY_FIELD: Field = { name: '', classification: 'DIRECT_IDENTIFIER', hand
 const labelCls = 'block text-xs font-medium uppercase tracking-wide text-gray-500'
 const inputCls =
   'mt-1 w-full rounded border border-gray-300 px-2.5 py-1.5 text-sm text-gray-900 focus:border-gray-900 focus:outline-none'
+const helpCls = 'mt-1 text-xs text-gray-400'
+
+const CLASSIFICATION_HELP: Record<string, string> = {
+  DIRECT_IDENTIFIER: 'Uniquely identifies one person on its own (email, SSN). Strictest — mart-layer tables can only expose this as aggregate-only.',
+  QUASI_IDENTIFIER: "Doesn't identify someone alone, but could combined with other fields (zip code, birth date).",
+  CONTACT: 'Contact details (phone, mailing address).',
+  SENSITIVE: 'Especially sensitive categories — health, financial, government ID.',
+  BEHAVIORAL: 'Usage or behavioral data (activity logs, preferences).',
+  SYSTEM_IDENTIFIER: 'Internal IDs or join keys — not personally identifying by themselves.',
+}
+
+const HANDLING_HELP: Record<string, string> = {
+  ENCRYPT: "The standard crypto-shred path — encrypted with the user's own key, unreadable once that key is destroyed.",
+  TOKENIZE: 'Replaced with a reversible token; the real value is looked up separately.',
+  REDACT: 'Masked or stripped before this field is ever exposed.',
+  HASH_SURROGATE: 'One-way hashed — usable as a join key, not reversible to the original value.',
+  ALLOW_AGGREGATE_ONLY: 'Only ever shown in aggregate form, never as an individual value. Required for direct identifiers in mart-layer tables.',
+  MANUAL_REVIEW: "No automated handling yet — flags this field as needing a human decision (shows as a policy warning until resolved).",
+}
 
 export function DeclarePanel({
   initial,
@@ -195,6 +214,7 @@ export function DeclarePanel({
                 <div>
                   <label className={labelCls}>Tenant ID</label>
                   <input className={inputCls} value={tenantId} onChange={(e) => setTenantId(e.target.value)} />
+                  <p className={helpCls}>Which tenant this belongs to. Leave the default unless this Chameleon instance manages more than one.</p>
                 </div>
                 <div>
                   <label className={labelCls}>System</label>
@@ -205,6 +225,7 @@ export function DeclarePanel({
                       </option>
                     ))}
                   </select>
+                  <p className={helpCls}>Where this data actually lives — determines how deletion is carried out (key-destroy for a warehouse, an API wipe call for a SaaS tool).</p>
                 </div>
               </div>
 
@@ -277,6 +298,7 @@ export function DeclarePanel({
                       </option>
                     ))}
                   </select>
+                  <p className={helpCls}>Where this sits in your pipeline. Mart-layer tables are held to a stricter policy — no direct identifiers unless handled as aggregate-only.</p>
                 </div>
                 <div>
                   <label className={labelCls}>Deletion strategy</label>
@@ -287,6 +309,11 @@ export function DeclarePanel({
                       </option>
                     ))}
                   </select>
+                  <p className={helpCls}>
+                    How a user&apos;s data here gets removed. <span className="font-medium">Crypto shred</span> (destroy
+                    the encryption key) needs a User ID column below; <span className="font-medium">Manual review</span>{' '}
+                    just flags it for a human, and shows as a policy warning until resolved.
+                  </p>
                 </div>
               </div>
 
@@ -294,20 +321,25 @@ export function DeclarePanel({
                 <div>
                   <label className={labelCls}>Tenant ID column</label>
                   <input className={inputCls} value={tenantIdColumn} onChange={(e) => setTenantIdColumn(e.target.value)} />
+                  <p className={helpCls}>Required for warehouse resources — the column that scopes rows to a tenant.</p>
                 </div>
                 <div>
                   <label className={labelCls}>User ID column</label>
                   <input className={inputCls} value={userIdColumn} onChange={(e) => setUserIdColumn(e.target.value)} />
+                  <p className={helpCls}>Required if using Crypto shred — the column that scopes rows to one user&apos;s key.</p>
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={ghostScan} onChange={(e) => setGhostScan(e.target.checked)} />
-                Enable ghost-data scanning
-              </label>
+              <div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={ghostScan} onChange={(e) => setGhostScan(e.target.checked)} />
+                  Enable ghost-data scanning
+                </label>
+                <p className={`${helpCls} ml-6`}>Periodically re-scans this table for new or drifted columns Chameleon doesn&apos;t know about yet.</p>
+              </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-1 flex items-center justify-between">
                   <label className={labelCls}>PII columns</label>
                   <button
                     onClick={() => setFields((prev) => [...prev, { name: '', classification: 'CONTACT', handling: 'ENCRYPT' }])}
@@ -316,6 +348,9 @@ export function DeclarePanel({
                     + Add column
                   </button>
                 </div>
+                <p className={`${helpCls} mb-2`}>
+                  Classification is how sensitive a field is; handling is what Chameleon does with it. Hover either dropdown for what the current selection means.
+                </p>
                 <div className="space-y-2">
                   {fields.map((field, i) => (
                     <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
@@ -329,6 +364,7 @@ export function DeclarePanel({
                         className={`${inputCls} mt-0`}
                         value={field.classification}
                         onChange={(e) => updateField(i, { classification: e.target.value })}
+                        title={CLASSIFICATION_HELP[field.classification]}
                       >
                         {CLASSIFICATIONS.map((c) => (
                           <option key={c} value={c}>
@@ -340,6 +376,7 @@ export function DeclarePanel({
                         className={`${inputCls} mt-0`}
                         value={field.handling}
                         onChange={(e) => updateField(i, { handling: e.target.value })}
+                        title={HANDLING_HELP[field.handling]}
                       >
                         {HANDLINGS.map((h) => (
                           <option key={h} value={h}>
