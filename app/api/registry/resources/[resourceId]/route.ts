@@ -27,6 +27,25 @@ function writeHeaders(tenantId: string): Record<string, string> {
   return headers
 }
 
+/** GET /api/registry/resources/:resourceId — fetch full detail for editing. */
+export async function GET(req: NextRequest, { params }: { params: Promise<{ resourceId: string }> }) {
+  if (!VAULT_BASE_URL) {
+    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
+  }
+  const { resourceId } = await params
+  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
+  const headers: Record<string, string> = { 'x-tenant-id': tenantId }
+  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
+
+  const res = await fetch(`${VAULT_BASE_URL}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
+    headers,
+    cache: 'no-store',
+  })
+
+  const data = await res.json()
+  return NextResponse.json(data, { status: res.status })
+}
+
 /** PUT /api/registry/resources/:resourceId — update an existing manual declaration. */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ resourceId: string }> }) {
   const blocked = guard()

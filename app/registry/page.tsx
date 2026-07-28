@@ -1,110 +1,13 @@
 import { getRegistryResources } from '@/lib/vault-api'
-import { Badge } from '@/app/ui/badge'
-import type { RegistryStatus, Classification, DeletionStrategy } from '@/lib/fixtures'
 import { RegistryHeader } from './registry-header'
-
-const systemLabels: Record<string, string> = {
-  bigquery: 'BigQuery',
-  salesforce: 'Salesforce',
-  hubspot: 'HubSpot',
-}
-
-const strategyLabels: Record<DeletionStrategy, string> = {
-  key_destroy: 'Key destroy',
-  row_delete: 'Row delete',
-  saas_wipe: 'SaaS wipe',
-}
-
-const classificationStyles: Record<Classification, string> = {
-  HIGH: 'text-red-700 font-semibold',
-  MEDIUM: 'text-amber-700 font-semibold',
-  LOW: 'text-gray-500',
-}
+import { RegistryTable } from './registry-table'
 
 export default async function RegistryPage() {
   const registryResources = await getRegistryResources()
   return (
     <div>
       <RegistryHeader resourceCount={registryResources.length} />
-
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Resource
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                System
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                PII columns
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Deletion strategy
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Classification
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Owner
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                Status
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {registryResources.map((resource) => (
-              <tr key={resource.resourceId} className="hover:bg-gray-50/50">
-                <td className="px-5 py-3">
-                  <p className="text-sm font-medium text-gray-900">
-                    {resource.displayName}
-                  </p>
-                  <p className="mt-0.5 font-mono text-xs text-gray-400">
-                    {resource.resourceId}
-                  </p>
-                </td>
-                <td className="px-5 py-3 text-sm text-gray-700">
-                  {systemLabels[resource.system] ?? resource.system}
-                </td>
-                <td className="px-5 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {resource.piiColumns.map((col) => (
-                      <span
-                        key={col.name}
-                        className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600"
-                        title={col.classification}
-                      >
-                        {col.name}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-sm text-gray-700">
-                  {strategyLabels[resource.deletionStrategy]}
-                </td>
-                <td className="px-5 py-3">
-                  <span
-                    className={`text-sm ${classificationStyles[resource.classification]}`}
-                  >
-                    {resource.classification}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">
-                    {resource.ownerConnector}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  <Badge variant={resource.status as RegistryStatus} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
+      <RegistryTable resources={registryResources} />
     </div>
   )
 }

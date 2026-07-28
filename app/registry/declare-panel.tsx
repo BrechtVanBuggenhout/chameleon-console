@@ -25,6 +25,13 @@ export type DeclareInitial = {
   system?: string
   resourceLayer?: string
   columns?: string[]
+  /** Full-fidelity fields, present only when editing an existing declaration
+   * (fetched fresh via GET, not derived from the lossy list-view mapping). */
+  tenantIdColumn?: string
+  userIdColumn?: string
+  deletionStrategy?: string
+  ghostDataScanEnabled?: boolean
+  piiFields?: Field[]
 }
 
 /** Infer a sensible default classification/handling from a discovered column name. */
@@ -49,10 +56,13 @@ const inputCls =
 
 export function DeclarePanel({
   initial,
+  isEdit,
   onClose,
   onDeclared,
 }: {
   initial?: DeclareInitial
+  /** True when editing an existing declaration — locks the resource ID and PUTs instead of POSTs. */
+  isEdit?: boolean
   onClose: () => void
   onDeclared?: () => void
 }) {
@@ -63,17 +73,22 @@ export function DeclarePanel({
   const [success, setSuccess] = useState<string | null>(null)
 
   // State is seeded once from `initial`; the parent remounts via `key` to re-seed
-  // (avoids a set-state-in-effect sync). Pre-fills from a discovery finding when given.
+  // (avoids a set-state-in-effect sync). Pre-fills from a discovery finding, or from
+  // the full existing entry when editing.
   const [tenantId, setTenantId] = useState(initial?.tenantId ?? TENANT_ID)
   const [resourceId, setResourceId] = useState(initial?.resourceId ?? '')
   const [system, setSystem] = useState<string>(initial?.system ?? 'bigquery')
   const [resourceLayer, setResourceLayer] = useState<string>(initial?.resourceLayer ?? 'RAW')
-  const [tenantIdColumn, setTenantIdColumn] = useState('tenant_id')
-  const [userIdColumn, setUserIdColumn] = useState('user_id')
-  const [deletionStrategy, setDeletionStrategy] = useState<string>('CRYPTO_SHRED')
-  const [ghostScan, setGhostScan] = useState(true)
+  const [tenantIdColumn, setTenantIdColumn] = useState(initial?.tenantIdColumn ?? 'tenant_id')
+  const [userIdColumn, setUserIdColumn] = useState(initial?.userIdColumn ?? 'user_id')
+  const [deletionStrategy, setDeletionStrategy] = useState<string>(initial?.deletionStrategy ?? 'CRYPTO_SHRED')
+  const [ghostScan, setGhostScan] = useState(initial?.ghostDataScanEnabled ?? true)
   const [fields, setFields] = useState<Field[]>(
-    initial?.columns?.length ? initial.columns.map(inferField) : [{ ...EMPTY_FIELD }]
+    initial?.piiFields?.length
+      ? initial.piiFields
+      : initial?.columns?.length
+        ? initial.columns.map(inferField)
+        : [{ ...EMPTY_FIELD }]
   )
 
   function updateField(index: number, patch: Partial<Field>) {
@@ -86,8 +101,9 @@ export function DeclarePanel({
     setIssues([])
     setSuccess(null)
     try {
-      const res = await fetch('/api/registry/resources', {
-        method: 'POST',
+      const url = isEdit ? `/api/registry/resources/${encodeURIComponent(resourceId)}` : '/api/registry/resources'
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantId },
         body: JSON.stringify({
           resourceId,
@@ -110,7 +126,7 @@ export function DeclarePanel({
         (i: { severity: string; message: string }) => `${i.severity}: ${i.message}`
       )
       setIssues(policyIssues)
-      setSuccess(`Declared ${data.resource.resourceId} (${data.policy?.status ?? 'PASS'})`)
+      setSuccess(`${isEdit ? 'Updated' : 'Declared'} ${data.resource.resourceId} (${data.policy?.status ?? 'PASS'})`)
       router.refresh()
       onDeclared?.()
     } catch {
@@ -127,13 +143,15 @@ export function DeclarePanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Declare PII dataset</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit PII dataset' : 'Declare PII dataset'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             ✕
           </button>
         </div>
             <p className="mb-5 text-sm text-gray-500">
-              Register a table an ETL tool (e.g. Fivetran) created so Chameleon tracks and can crypto-shred its PII.
+              {isEdit
+                ? 'Update this declaration — every field is resubmitted, so review the full list of PII columns before saving.'
+                : 'Register a table an ETL tool (e.g. Fivetran) created so Chameleon tracks and can crypto-shred its PII.'}
             </p>
 
             <div className="space-y-4">
@@ -157,10 +175,12 @@ export function DeclarePanel({
               <div>
                 <label className={labelCls}>Resource ID</label>
                 <input
-                  className={`${inputCls} font-mono`}
+                  className={`${inputCls} font-mono ${isEdit ? 'bg-gray-50 text-gray-500' : ''}`}
                   placeholder="bigquery:project.dataset.table"
                   value={resourceId}
                   onChange={(e) => setResourceId(e.target.value)}
+                  disabled={isEdit}
+                  title={isEdit ? "A resource's identity can't be changed — delete and re-declare instead." : undefined}
                 />
               </div>
 
@@ -276,7 +296,7 @@ export function DeclarePanel({
                   disabled={submitting || !resourceId.trim()}
                   className="rounded-md bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Declaring…' : 'Declare'}
+                  {submitting ? (isEdit ? 'Saving…' : 'Declaring…') : isEdit ? 'Save changes' : 'Declare'}
                 </button>
               </div>
             </div>
