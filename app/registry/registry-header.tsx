@@ -20,6 +20,8 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
   const [initial, setInitial] = useState<DeclareInitial | undefined>(undefined)
   const [panelKey, setPanelKey] = useState(0)
   const [findings, setFindings] = useState<DiscoveryFinding[]>([])
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   const loadFindings = useCallback(async () => {
     try {
@@ -53,6 +55,24 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
     setOpen(true)
   }
 
+  async function syncNow() {
+    setSyncing(true)
+    setSyncMessage(null)
+    try {
+      const res = await fetch('/api/registry/sync-now', { method: 'POST', headers: { 'x-tenant-id': TENANT_ID } })
+      const data = await res.json()
+      if (!res.ok) {
+        setSyncMessage(data.error ?? 'Sync failed')
+        return
+      }
+      setSyncMessage(`Synced ${data.users_synced} ${data.users_synced === 1 ? 'user' : 'users'} across ${data.resources_synced} ${data.resources_synced === 1 ? 'resource' : 'resources'}`)
+    } catch {
+      setSyncMessage('Sync failed — could not reach Key Vault')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   function declareFromFinding(finding: DiscoveryFinding) {
     setInitial({
       tenantId: TENANT_ID,
@@ -74,12 +94,26 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
             PII resources declared across connected systems. {resourceCount} resources registered.
           </p>
         </div>
-        <button
-          onClick={declareBlank}
-          className="shrink-0 rounded-md bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          Declare PII dataset
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div className="flex gap-2">
+            <button
+              onClick={syncNow}
+              disabled={syncing}
+              className="rounded-md border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+            <button
+              onClick={declareBlank}
+              className="rounded-md bg-gray-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-gray-700"
+            >
+              Declare PII dataset
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">
+            {syncMessage ?? 'Syncs automatically every day at 7:00 AM UTC'}
+          </p>
+        </div>
       </div>
 
       {findings.length > 0 && (
