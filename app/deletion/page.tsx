@@ -1,10 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TENANT_ID } from '@/lib/tenant'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'error'
+
+type LookupState = 'idle' | 'checking' | 'active' | 'shredded' | 'not_found' | 'unknown'
+
+interface KeyStatusResponse {
+  status?: string
+  shredAt?: string | null
+  shred_at?: string | null
+}
 
 interface Step {
   id: string
@@ -84,10 +92,56 @@ export default function DeletionPage() {
   const [completedAt, setCompletedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS)
+  const [lookup, setLookup] = useState<LookupState>('idle')
+  const [shredAt, setShredAt] = useState<string | null>(null)
 
   function patchStep(id: string, patch: Partial<Step>) {
     setSteps(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s))
   }
+
+  function handleUserIdChange(value: string) {
+    setUserId(value)
+    setLookup(value.trim() ? 'checking' : 'idle')
+  }
+
+  // Confirms the ID actually has a key on file before the operator can fire a
+  // deletion at it -- catches typos (which would otherwise "succeed" against
+  // nothing) and re-runs against an already-shredded user. Debounced and
+  // fails open: a lookup error/timeout never blocks the trigger button, since
+  // this is a confirmation aid, not a hard gate. The immediate 'checking'/'idle'
+  // transition lives in handleUserIdChange (a real event handler) rather than
+  // here, since setState synchronously in an effect body triggers cascading
+  // renders -- this effect only ever sets state from inside the async fetch.
+  useEffect(() => {
+    const trimmed = userId.trim()
+    if (!trimmed || running) return
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/key-status/${encodeURIComponent(trimmed)}`, {
+          headers: { 'x-tenant-id': TENANT_ID },
+          cache: 'no-store',
+        })
+        if (res.status === 404) {
+          setLookup('not_found')
+          return
+        }
+        if (!res.ok) {
+          setLookup('unknown')
+          return
+        }
+        const data = (await res.json()) as KeyStatusResponse
+        if (data.status === 'SHREDDED') {
+          setShredAt(data.shredAt ?? data.shred_at ?? null)
+          setLookup('shredded')
+        } else {
+          setLookup('active')
+        }
+      } catch {
+        setLookup('unknown')
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [userId, running])
 
   async function advanceRequest(id: string, newStatus: string, operationId: string) {
     const res = await fetch(`/api/deletion/${id}`, {
@@ -117,6 +171,7 @@ export default function DeletionPage() {
   async function handleTrigger() {
     if (!userId.trim()) return
     setRunning(true)
+    setLookup('idle')
     setError(null)
     setCompletedAt(null)
     setDeletionRequestId(null)
@@ -198,21 +253,54 @@ export default function DeletionPage() {
                 id="userId"
                 type="text"
                 value={userId}
-                onChange={e => setUserId(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleTrigger()}
+                onChange={e => handleUserIdChange(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && lookup !== 'not_found' && lookup !== 'shredded' && handleTrigger()}
                 placeholder="e.g. usr-001"
                 disabled={running}
                 className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"
               />
+              <p className="mt-1 text-xs text-gray-400">
+                The identifier from your own system used when this user&apos;s PII was ingested — usually your database&apos;s primary key. Not an email or name.
+              </p>
             </div>
             <button
               onClick={handleTrigger}
-              disabled={running || !userId.trim()}
+              disabled={running || !userId.trim() || lookup === 'not_found' || lookup === 'shredded'}
               className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {running ? 'Running…' : 'Trigger deletion'}
             </button>
           </div>
+
+          {!running && userId.trim() && (
+            <div className="mt-2">
+              {lookup === 'checking' && (
+                <p className="text-xs text-gray-400">Checking…</p>
+              )}
+              {lookup === 'active' && (
+                <p className="text-xs text-green-600">✓ Record found — ready to delete</p>
+              )}
+              {lookup === 'not_found' && (
+                <p className="text-xs text-red-600">
+                  ✗ No record found for this ID — double check it against your own system, not a name or email
+                </p>
+              )}
+              {lookup === 'shredded' && (
+                <p className="text-xs text-yellow-600">
+                  ⚠ Already deleted{shredAt ? ` on ${new Date(shredAt).toLocaleDateString()}` : ''} —{' '}
+                  <button
+                    onClick={() => router.push(`/proof?userId=${encodeURIComponent(userId)}`)}
+                    className="underline hover:no-underline"
+                  >
+                    view certificate
+                  </button>
+                </p>
+              )}
+              {lookup === 'unknown' && (
+                <p className="text-xs text-gray-400">Couldn&apos;t verify this ID — you can still proceed</p>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="mt-3 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
