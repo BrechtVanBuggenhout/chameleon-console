@@ -65,7 +65,11 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
         setSyncMessage(data.error ?? 'Sync failed')
         return
       }
-      setSyncMessage(`Synced ${data.users_synced} ${data.users_synced === 1 ? 'user' : 'users'} across ${data.resources_synced} ${data.resources_synced === 1 ? 'resource' : 'resources'}`)
+      // The sync job now enumerates and fans out per-chunk work over
+      // Pub/Sub instead of processing everything inline, so this response
+      // is a queued count, not a final result -- actual encryption happens
+      // moments later, off-screen.
+      setSyncMessage(`Queued ${data.chunks_queued} ${data.chunks_queued === 1 ? 'chunk' : 'chunks'} across ${data.resources_queued} ${data.resources_queued === 1 ? 'resource' : 'resources'}`)
     } catch {
       setSyncMessage('Sync failed — could not reach Key Vault')
     } finally {
