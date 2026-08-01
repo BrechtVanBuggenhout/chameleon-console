@@ -13,6 +13,8 @@ type BadgeVariant =
   | 'COMPLETED'
   | 'CERTIFIED'
   | 'PENDING'
+  | 'active'
+  | 'revoked'
 
 const variantStyles: Record<BadgeVariant, string> = {
   declared: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20',
@@ -20,12 +22,14 @@ const variantStyles: Record<BadgeVariant, string> = {
   connected: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20',
   COMPLETED: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20',
   CERTIFIED: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20',
+  active: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20',
   policy_warning: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20',
   WARN: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20',
   warning: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20',
   ghost: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20',
   FAIL: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20',
   disconnected: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20',
+  revoked: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20',
   PENDING: 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/20',
 }
 
@@ -36,6 +40,8 @@ const variantLabels: Partial<Record<BadgeVariant, string>> = {
   connected: 'Connected',
   warning: 'Warning',
   disconnected: 'Disconnected',
+  active: 'Active',
+  revoked: 'Revoked',
 }
 
 export function Badge({
