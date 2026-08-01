@@ -306,6 +306,27 @@ export async function getDiscoveryFindings(): Promise<DiscoveryFinding[]> {
   return data.findings as DiscoveryFinding[]
 }
 
+export type DecryptedView = {
+  tenant_id: string
+  view_name: string
+  source_resource_id: string
+  declared_fields: string[]
+  business_justification: string
+  created_by: string
+  bigquery_dataset: string
+  bigquery_view_name: string
+  status: 'active' | 'revoked'
+  created_at: string
+  revoked_at?: string
+  revoked_by?: string
+}
+
+export async function getDecryptedViews(): Promise<DecryptedView[]> {
+  const data = await kvFetch('/decrypted-views')
+  if (!data || !Array.isArray(data.views)) return []
+  return data.views as DecryptedView[]
+}
+
 export async function getOverview() {
   const [resources, policy, ghostFindings] = await Promise.all([
     getRegistryResources(),
