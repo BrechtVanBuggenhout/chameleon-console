@@ -1,16 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TENANT_ID } from '@/lib/tenant'
-
-// Only fields with a real crypto anchor can ever be exposed through a
-// decrypted view -- matches the SHREDDABLE_HANDLING set enforced server-side
-// in decrypted-view-service.ts. Shown here so a customer sees why a field is
-// greyed out instead of just hitting a 400 on submit.
-const SHREDDABLE_HANDLING = new Set(['ENCRYPT', 'TOKENIZE', 'HASH_SURROGATE'])
-
-type RegistryField = { name: string; classification: string; handling: string }
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wide text-gray-500'
 const inputCls =
@@ -24,43 +16,44 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
   const [success, setSuccess] = useState<string | null>(null)
 
   const [viewName, setViewName] = useState('')
-  const [sourceResourceId, setSourceResourceId] = useState('')
   const [businessJustification, setBusinessJustification] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [consumerServiceAccount, setConsumerServiceAccount] = useState('')
   const [declaredFields, setDeclaredFields] = useState<string[]>([])
 
-  const [registryFields, setRegistryFields] = useState<RegistryField[] | null>(null)
-  const [registryLoading, setRegistryLoading] = useState(false)
-  const [registryError, setRegistryError] = useState<string | null>(null)
+  const [availableFields, setAvailableFields] = useState<string[] | null>(null)
+  const [fieldsLoading, setFieldsLoading] = useState(true)
+  const [fieldsError, setFieldsError] = useState<string | null>(null)
+
+  // Every decrypted view is built on top of the central pii_vault table --
+  // never a customer-supplied source. Load once, on open, whatever field
+  // names actually have synced rows there for this tenant. fieldsLoading
+  // already starts true, so there's nothing to set synchronously here.
+  useEffect(() => {
+    let active = true
+    fetch('/api/decrypted-views/available-fields', { headers: { 'x-tenant-id': TENANT_ID } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return
+        if (Array.isArray(data.fields)) {
+          setAvailableFields(data.fields)
+        } else {
+          setFieldsError(data.error ?? 'Failed to load available fields')
+        }
+      })
+      .catch(() => {
+        if (active) setFieldsError('Network error reaching the Key Vault')
+      })
+      .finally(() => {
+        if (active) setFieldsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   function toggleField(name: string) {
     setDeclaredFields((prev) => (prev.includes(name) ? prev.filter((f) => f !== name) : [...prev, name]))
-  }
-
-  async function loadRegistryFields() {
-    if (!sourceResourceId.trim()) return
-    setRegistryLoading(true)
-    setRegistryError(null)
-    setRegistryFields(null)
-    try {
-      const res = await fetch(`/api/registry/resources/${encodeURIComponent(sourceResourceId)}`, {
-        headers: { 'x-tenant-id': TENANT_ID },
-      })
-      const data = await res.json()
-      if (!res.ok || !data.resource) {
-        setRegistryError(data.error ?? 'No declared PII resource found for this ID')
-        return
-      }
-      const fields = Array.isArray(data.resource.piiFields)
-        ? (data.resource.piiFields as RegistryField[])
-        : []
-      setRegistryFields(fields)
-    } catch {
-      setRegistryError('Network error reaching the Key Vault')
-    } finally {
-      setRegistryLoading(false)
-    }
   }
 
   async function submit() {
@@ -73,7 +66,6 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
         headers: { 'Content-Type': 'application/json', 'x-tenant-id': TENANT_ID },
         body: JSON.stringify({
           viewName,
-          sourceResourceId,
           declaredFields,
           businessJustification,
           createdBy,
@@ -97,7 +89,6 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
 
   const canSubmit =
     viewName.trim() &&
-    sourceResourceId.trim() &&
     declaredFields.length > 0 &&
     businessJustification.trim() &&
     createdBy.trim() &&
@@ -116,9 +107,9 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
           </button>
         </div>
         <p className="mb-5 text-sm text-gray-500">
-          Creates a BigQuery Authorized View that decrypts the fields below live, on every query — nothing is
-          ever written to storage. A user shredded after this view is declared simply stops decrypting on the
-          next query; no extra cleanup needed here.
+          Creates a BigQuery Authorized View, built on the central pii_vault table, that decrypts the fields
+          below live, on every query — nothing is ever written to storage. A user shredded after this view is
+          declared simply stops decrypting on the next query; no extra cleanup needed here.
         </p>
 
         <div className="space-y-4">
@@ -134,70 +125,39 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
           </div>
 
           <div>
-            <label className={labelCls}>Source resource ID</label>
-            <div className="mt-1 flex gap-2">
-              <input
-                className={`${inputCls} mt-0 flex-1 font-mono`}
-                placeholder="bigquery:project.dataset.table"
-                value={sourceResourceId}
-                onChange={(e) => {
-                  setSourceResourceId(e.target.value)
-                  setRegistryFields(null)
-                  setRegistryError(null)
-                  setDeclaredFields([])
-                }}
-              />
-              <button
-                onClick={loadRegistryFields}
-                disabled={registryLoading || !sourceResourceId.trim()}
-                className="shrink-0 rounded border border-gray-300 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                title="Fetch this resource's declared PII fields from the registry"
-              >
-                {registryLoading ? 'Loading…' : 'Load fields'}
-              </button>
-            </div>
-            <p className={helpCls}>Must already be declared in the Registry — the same resource ID shown there.</p>
-            {registryError && <p className="mt-1 text-xs text-red-600">{registryError}</p>}
+            <label className={labelCls}>Fields to decrypt</label>
+            <p className={`${helpCls} mb-2`}>
+              Every field ever synced into pii_vault for this tenant — already crypto-anchored by construction,
+              so all of these are eligible.
+            </p>
+            {fieldsLoading && <p className="text-xs text-gray-400">Loading available fields…</p>}
+            {fieldsError && <p className="text-xs text-red-600">{fieldsError}</p>}
+            {availableFields && availableFields.length === 0 && (
+              <p className="text-xs text-gray-400">Nothing has synced into pii_vault for this tenant yet.</p>
+            )}
+            {availableFields && availableFields.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {availableFields.map((field) => {
+                  const selected = declaredFields.includes(field)
+                  return (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() => toggleField(field)}
+                      className={`rounded-full border px-2 py-0.5 font-mono text-xs ${
+                        selected
+                          ? 'border-green-300 bg-green-50 text-green-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {selected ? '✓ ' : '+ '}
+                      {field}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-
-          {registryFields && (
-            <div>
-              <label className={labelCls}>Declared fields</label>
-              <p className={`${helpCls} mb-2`}>
-                Only fields with a real crypto anchor (ENCRYPT, TOKENIZE, HASH_SURROGATE) can be exposed —
-                others are shown but disabled.
-              </p>
-              {registryFields.length === 0 ? (
-                <p className="text-xs text-gray-400">No PII fields declared on this resource.</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {registryFields.map((f) => {
-                    const eligible = SHREDDABLE_HANDLING.has(f.handling)
-                    const selected = declaredFields.includes(f.name)
-                    return (
-                      <button
-                        key={f.name}
-                        type="button"
-                        onClick={() => eligible && toggleField(f.name)}
-                        disabled={!eligible}
-                        title={eligible ? f.handling : `${f.handling} has no crypto anchor to decrypt`}
-                        className={`rounded-full border px-2 py-0.5 font-mono text-xs ${
-                          !eligible
-                            ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300'
-                            : selected
-                              ? 'border-green-300 bg-green-50 text-green-700'
-                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {selected ? '✓ ' : '+ '}
-                        {f.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
           <div>
             <label className={labelCls}>Business justification</label>
