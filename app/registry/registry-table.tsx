@@ -54,6 +54,7 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
         tenantIdColumn: r.tenantIdColumn,
         userIdColumn: r.userIdColumn,
         deletionStrategy: r.deletionStrategy,
+        sourceRedactionStrategy: r.sourceRedactionStrategy,
         ghostDataScanEnabled: r.ghostDataScan?.enabled,
         piiFields: Array.isArray(r.piiFields)
           ? r.piiFields.map((f: { name: string; classification: string; handling: string }) => ({
