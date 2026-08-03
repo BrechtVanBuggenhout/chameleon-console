@@ -16,6 +16,15 @@ const CLASSIFICATIONS = [
 ] as const
 const HANDLINGS = ['ENCRYPT', 'TOKENIZE', 'REDACT', 'HASH_SURROGATE', 'ALLOW_AGGREGATE_ONLY', 'MANUAL_REVIEW'] as const
 const STRATEGIES = ['CRYPTO_SHRED', 'DELETE_ROWS', 'REDACT_FIELDS', 'EXTERNAL_WIPE', 'MANUAL_REVIEW'] as const
+const SOURCE_REDACTION_STRATEGIES = ['NONE', 'REDACT_IN_PLACE', 'SHADOW_COPY'] as const
+
+/** Table name portion of a `system:project.dataset.table` resource ID, for the SHADOW_COPY preview name. */
+function tableNameFrom(resourceId: string): string | null {
+  const afterColon = resourceId.split(':')[1]
+  if (!afterColon) return null
+  const parts = afterColon.split('.')
+  return parts[parts.length - 1] || null
+}
 
 type Field = { name: string; classification: string; handling: string }
 
@@ -30,6 +39,7 @@ export type DeclareInitial = {
   tenantIdColumn?: string
   userIdColumn?: string
   deletionStrategy?: string
+  sourceRedactionStrategy?: string
   ghostDataScanEnabled?: boolean
   piiFields?: Field[]
 }
@@ -73,6 +83,20 @@ const HANDLING_HELP: Record<string, string> = {
   MANUAL_REVIEW: "No automated handling yet — flags this field as needing a human decision (shows as a policy warning until resolved).",
 }
 
+const SOURCE_REDACTION_LABELS: Record<string, string> = {
+  NONE: 'Leave the source table as-is',
+  REDACT_IN_PLACE: 'Redact in place on deletion',
+  SHADOW_COPY: 'Maintain a de-identified copy',
+}
+
+/** Only meaningful for a table you don't own the ingestion pipeline for — crypto-shredding
+ * already fully protects the copy Chameleon holds regardless of which option is chosen. */
+const SOURCE_REDACTION_HELP: Record<string, string> = {
+  NONE: "Chameleon's crypto-shred still fully protects its own copy of this data — this table's original plaintext is simply left as you already had it.",
+  REDACT_IN_PLACE: "On deletion, Chameleon nulls out exactly these declared columns directly in this table — never deletes rows, never touches any other column. Requires write access to this table.",
+  SHADOW_COPY: "This table is never touched. Instead Chameleon maintains a live view alongside it that mirrors it with these columns decrypted on the fly — a user's data drops out of that view automatically the moment their key is destroyed, no separate cleanup step needed.",
+}
+
 export function DeclarePanel({
   initial,
   isEdit,
@@ -90,6 +114,7 @@ export function DeclarePanel({
   const [error, setError] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[]>([])
   const [success, setSuccess] = useState<string | null>(null)
+  const [shadowCopyError, setShadowCopyError] = useState<string | null>(null)
   const [schemaColumns, setSchemaColumns] = useState<{ name: string; dataType: string }[] | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaError, setSchemaError] = useState<string | null>(null)
@@ -104,6 +129,9 @@ export function DeclarePanel({
   const [tenantIdColumn, setTenantIdColumn] = useState(initial?.tenantIdColumn ?? 'tenant_id')
   const [userIdColumn, setUserIdColumn] = useState(initial?.userIdColumn ?? 'user_id')
   const [deletionStrategy, setDeletionStrategy] = useState<string>(initial?.deletionStrategy ?? 'CRYPTO_SHRED')
+  const [sourceRedactionStrategy, setSourceRedactionStrategy] = useState<string>(
+    initial?.sourceRedactionStrategy ?? 'NONE'
+  )
   const [ghostScan, setGhostScan] = useState(initial?.ghostDataScanEnabled ?? true)
   const [fields, setFields] = useState<Field[]>(
     initial?.piiFields?.length
@@ -155,6 +183,7 @@ export function DeclarePanel({
     setError(null)
     setIssues([])
     setSuccess(null)
+    setShadowCopyError(null)
     try {
       const url = isEdit ? `/api/registry/resources/${encodeURIComponent(resourceId)}` : '/api/registry/resources'
       const res = await fetch(url, {
@@ -167,6 +196,7 @@ export function DeclarePanel({
           tenantIdColumn: tenantIdColumn || undefined,
           userIdColumn: userIdColumn || undefined,
           deletionStrategy,
+          sourceRedactionStrategy,
           ghostDataScan: { enabled: ghostScan },
           piiFields: fields.filter((f) => f.name.trim()),
         }),
@@ -182,6 +212,10 @@ export function DeclarePanel({
       )
       setIssues(policyIssues)
       setSuccess(`${isEdit ? 'Updated' : 'Declared'} ${data.resource.resourceId} (${data.policy?.status ?? 'PASS'})`)
+      // The declaration itself succeeded (it's the durable source of truth) --
+      // a SHADOW_COPY view failure is reported separately rather than as a
+      // declaration error, since one didn't actually happen.
+      if (typeof data.shadowCopyError === 'string') setShadowCopyError(data.shadowCopyError)
       router.refresh()
       onDeclared?.()
     } catch {
@@ -326,8 +360,38 @@ export function DeclarePanel({
                 <div>
                   <label className={labelCls}>User ID column</label>
                   <input className={inputCls} value={userIdColumn} onChange={(e) => setUserIdColumn(e.target.value)} />
-                  <p className={helpCls}>Required if using Crypto shred — the column that scopes rows to one user&apos;s key.</p>
+                  <p className={helpCls}>
+                    {`Required if using Crypto shred${sourceRedactionStrategy !== 'NONE' ? ', or the source redaction option below,' : ''} — the column that scopes rows to one user's key.`}
+                  </p>
                 </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>What happens to this table on deletion</label>
+                <select
+                  className={inputCls}
+                  value={sourceRedactionStrategy}
+                  onChange={(e) => setSourceRedactionStrategy(e.target.value)}
+                >
+                  {SOURCE_REDACTION_STRATEGIES.map((s) => (
+                    <option key={s} value={s}>
+                      {SOURCE_REDACTION_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+                <p className={helpCls}>
+                  {SOURCE_REDACTION_HELP[sourceRedactionStrategy]}
+                  {sourceRedactionStrategy === 'SHADOW_COPY' && tableNameFrom(resourceId) && (
+                    <>
+                      {' '}
+                      Exposed here as{' '}
+                      <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] text-gray-700">
+                        {tableNameFrom(resourceId)}_deidentified
+                      </code>
+                      , alongside this table.
+                    </>
+                  )}
+                </p>
               </div>
 
               <div>
@@ -406,6 +470,11 @@ export function DeclarePanel({
                 </ul>
               )}
               {success && <div className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>}
+              {shadowCopyError && (
+                <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Declared, but the de-identified copy couldn&apos;t be created: {shadowCopyError}
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onClose} className="rounded-md border border-gray-300 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50">
