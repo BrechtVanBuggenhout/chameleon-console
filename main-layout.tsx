@@ -8,6 +8,7 @@ const navItems = [
   { href: '/overview', label: 'Overview', icon: '◈' },
   { href: '/registry', label: 'Registry', icon: '⊞' },
   { href: '/decrypted-views', label: 'Decrypted Views', icon: '◫' },
+  { href: '/decrypt', label: 'Decrypt', icon: '◆' },
   { href: '/ghost-data', label: 'Ghost Data', icon: '◎' },
   { href: '/policy', label: 'Policy', icon: '⊛' },
   { href: '/deletion', label: 'Deletion', icon: '⊘' },
