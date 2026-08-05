@@ -1,43 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/tenant'
+import { getActiveProjectContext, type ActiveProjectContext } from '@/lib/project-context'
 
-const VAULT_BASE_URL = process.env.VAULT_BASE_URL
-const REGISTRY_WRITE_TOKEN = process.env.VAULT_REGISTRY_WRITE_TOKEN
-// Key Vault's global app auth (x-api-key). Writes must pass BOTH layers:
-// x-api-key for the app-wide hook, Bearer for the declare-route guard.
-const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
-
-function guard(): NextResponse | null {
-  if (!VAULT_BASE_URL) {
-    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
-  }
-  if (!REGISTRY_WRITE_TOKEN) {
-    return NextResponse.json({ error: 'Registry write token not configured' }, { status: 503 })
-  }
-  return null
-}
-
-function writeHeaders(tenantId: string): Record<string, string> {
+function writeHeaders(context: ActiveProjectContext): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-tenant-id': tenantId,
-    Authorization: `Bearer ${REGISTRY_WRITE_TOKEN}`,
+    'x-tenant-id': context.tenantId,
+    Authorization: `Bearer ${context.vaultRegistryWriteToken}`,
   }
-  if (VAULT_API_TOKEN) headers['x-api-key'] = VAULT_API_TOKEN
+  if (context.vaultApiToken) headers['x-api-key'] = context.vaultApiToken
   return headers
 }
 
 /** GET /api/registry/resources/:resourceId — fetch full detail for editing. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ resourceId: string }> }) {
-  if (!VAULT_BASE_URL) {
-    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
   }
-  const { resourceId } = await params
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
-  const headers: Record<string, string> = { 'x-tenant-id': tenantId }
-  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
 
-  const res = await fetch(`${VAULT_BASE_URL}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
+  const { resourceId } = await params
+  const headers: Record<string, string> = { 'x-tenant-id': context.tenantId }
+  if (context.vaultApiToken) headers['Authorization'] = `Bearer ${context.vaultApiToken}`
+
+  const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     headers,
     cache: 'no-store',
   })
@@ -48,16 +33,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ reso
 
 /** PUT /api/registry/resources/:resourceId — update an existing manual declaration. */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ resourceId: string }> }) {
-  const blocked = guard()
-  if (blocked) return blocked
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
+  }
+  if (!context.vaultRegistryWriteToken) {
+    return NextResponse.json({ error: 'Registry write token not configured' }, { status: 503 })
+  }
 
   const { resourceId } = await params
   const body = await req.json()
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
-  const res = await fetch(`${VAULT_BASE_URL}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
+  const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'PUT',
-    headers: writeHeaders(tenantId),
+    headers: writeHeaders(context),
     body: JSON.stringify(body),
   })
 
@@ -67,15 +56,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ reso
 
 /** DELETE /api/registry/resources/:resourceId — remove a manual declaration. */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ resourceId: string }> }) {
-  const blocked = guard()
-  if (blocked) return blocked
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
+  }
+  if (!context.vaultRegistryWriteToken) {
+    return NextResponse.json({ error: 'Registry write token not configured' }, { status: 503 })
+  }
 
   const { resourceId } = await params
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
-  const res = await fetch(`${VAULT_BASE_URL}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
+  const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'DELETE',
-    headers: writeHeaders(tenantId),
+    headers: writeHeaders(context),
   })
 
   const data = await res.json()

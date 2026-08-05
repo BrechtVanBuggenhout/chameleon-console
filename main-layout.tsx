@@ -14,6 +14,7 @@ const navItems = [
   { href: '/deletion', label: 'Deletion', icon: '⊘' },
   { href: '/proof', label: 'Proof', icon: '✦' },
   { href: '/integrations', label: 'Integrations', icon: '⊕' },
+  { href: '/projects', label: 'Projects', icon: '⌘' },
 ];
 
 export function MainLayout({ children }: { children: React.ReactNode }) {

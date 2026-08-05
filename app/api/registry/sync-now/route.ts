@@ -1,29 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/tenant'
-
-const VAULT_BASE_URL = process.env.VAULT_BASE_URL
-// Same dedicated write-token gate as /api/registry/resources -- this triggers
-// real encryption + BigQuery writes, not a read, so it's held to the same bar.
-const REGISTRY_WRITE_TOKEN = process.env.VAULT_REGISTRY_WRITE_TOKEN
-const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
+import { NextResponse } from 'next/server'
+import { getActiveProjectContext } from '@/lib/project-context'
 
 /** POST /api/registry/sync-now — trigger the pii_vault backfill/sync job on demand, instead of waiting for its daily schedule. */
-export async function POST(req: NextRequest) {
-  if (!VAULT_BASE_URL) {
-    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
+export async function POST() {
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
   }
-  if (!REGISTRY_WRITE_TOKEN) {
+  if (!context.vaultRegistryWriteToken) {
     return NextResponse.json({ error: 'Registry write token not configured' }, { status: 503 })
   }
 
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
   const headers: Record<string, string> = {
-    'x-tenant-id': tenantId,
-    Authorization: `Bearer ${REGISTRY_WRITE_TOKEN}`,
+    'x-tenant-id': context.tenantId,
+    Authorization: `Bearer ${context.vaultRegistryWriteToken}`,
   }
-  if (VAULT_API_TOKEN) headers['x-api-key'] = VAULT_API_TOKEN
+  if (context.vaultApiToken) headers['x-api-key'] = context.vaultApiToken
 
-  const res = await fetch(`${VAULT_BASE_URL}/pii-registry/sync-now`, {
+  const res = await fetch(`${context.vaultBaseUrl}/pii-registry/sync-now`, {
     method: 'POST',
     headers,
   })

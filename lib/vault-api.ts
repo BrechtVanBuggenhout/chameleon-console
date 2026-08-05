@@ -8,31 +8,19 @@ import {
 import type {
   RegistryResource,
 } from '@/lib/fixtures'
-import { TENANT_ID } from '@/lib/tenant'
-
-const VAULT_BASE_URL = process.env.VAULT_BASE_URL
-const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
-
-// Every real Terraform deployment (BYOC or hosted) always sets VAULT_BASE_URL
-// unconditionally (see console.tf) — it's only ever unset when someone runs
-// this console with `npm run dev` on a laptop with no Key Vault at all. Used
-// below to gate fixture fallbacks so they only ever appear in that narrow
-// local-dev case, never for a real deployed instance.
-const HAS_LIVE_BACKEND = !!VAULT_BASE_URL
+import { getActiveProjectContext } from '@/lib/project-context'
 
 async function kvFetch(path: string) {
-  if (!VAULT_BASE_URL) return null
+  const context = await getActiveProjectContext()
+  if (!context) return null
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-tenant-id': TENANT_ID }
-    if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
-    const res = await fetch(`${VAULT_BASE_URL}${path}`, {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-tenant-id': context.tenantId }
+    if (context.vaultApiToken) headers['Authorization'] = `Bearer ${context.vaultApiToken}`
+    const res = await fetch(`${context.vaultBaseUrl}${path}`, {
       headers,
       // This console image is shared, unmodified, across every customer
-      // instance — VAULT_BASE_URL doesn't exist at build time, so any
-      // Next.js caching here (e.g. `next: { revalidate }`) lets the page get
-      // statically pre-rendered once at build with no backend, then only
-      // lazily revalidated per-instance. `no-store` forces every request to
-      // hit Key Vault live, every time.
+      // instance, and the active project can change per-request (project
+      // switcher) -- no caching here at all, every call resolves live.
       cache: 'no-store',
     })
     if (!res.ok) return null
@@ -42,13 +30,23 @@ async function kvFetch(path: string) {
   }
 }
 
+// Every real deployment always has EITHER a resolvable active project
+// (customer session) OR the static Terraform-wired fallback (break-glass /
+// pre-multi-project deployments) -- see project-context.ts. This is only
+// ever null in local dev with neither configured. Used below to gate
+// fixture fallbacks so they only ever appear in that narrow case, never for
+// a real deployed instance with simply nothing declared yet.
+async function hasLiveBackend(): Promise<boolean> {
+  return (await getActiveProjectContext()) !== null
+}
+
 export async function getRegistryResources(): Promise<RegistryResource[]> {
   const data = await kvFetch('/pii-registry/resources')
   // A real deployed instance always has VAULT_BASE_URL set — if the call
   // still failed or returned nothing, that's a real empty registry or a real
   // error, not a reason to show Chameleon's own dev fixtures. Fixtures are
   // only for local dev with no Key Vault configured at all.
-  if (!data) return HAS_LIVE_BACKEND ? [] : registryFixtures
+  if (!data) return (await hasLiveBackend()) ? [] : registryFixtures
   // KV returns { resources: [...] }
   const resources = Array.isArray(data) ? data : (data.resources ?? [])
   return resources.map((r: Record<string, unknown>) => {
@@ -131,7 +129,7 @@ export async function getPolicy(): Promise<LivePolicy> {
   const data = await kvFetch('/pii-registry/policy')
 
   if (!data || !Array.isArray(data.evaluations)) {
-    if (HAS_LIVE_BACKEND) {
+    if (await hasLiveBackend()) {
       // Real instance, no evaluations yet (e.g. nothing declared) — a real
       // empty/passing state, not Chameleon's own demo policy rules.
       return {
@@ -201,7 +199,7 @@ export async function getCoverage(): Promise<CoverageReport> {
   const data = await kvFetch('/pii-registry/coverage')
 
   if (!data || typeof data.score !== 'number') {
-    if (HAS_LIVE_BACKEND) {
+    if (await hasLiveBackend()) {
       // Real instance, nothing to score yet — a real empty state, not
       // Chameleon's own demo coverage numbers.
       return {
@@ -275,15 +273,15 @@ export async function findLatestCertificate(): Promise<{ proof: typeof proofFixt
 
 export async function getCertificate(userId: string): Promise<typeof proofFixture | null> {
   const data = await kvFetch(`/certificate/${userId}`)
-  if (!data) return HAS_LIVE_BACKEND ? null : proofFixture
+  if (!data) return (await hasLiveBackend()) ? null : proofFixture
   return parseCertificate(userId, data as Record<string, unknown>)
 }
 
 export async function getLineageEvents(userId: string): Promise<typeof proofFixture.auditTrail> {
   const data = await kvFetch(`/lineage/user/${userId}`)
-  if (!data) return HAS_LIVE_BACKEND ? [] : proofFixture.auditTrail
+  if (!data) return (await hasLiveBackend()) ? [] : proofFixture.auditTrail
   const events = Array.isArray(data) ? data : (data.events ?? [])
-  if (!events.length) return HAS_LIVE_BACKEND ? [] : proofFixture.auditTrail
+  if (!events.length) return (await hasLiveBackend()) ? [] : proofFixture.auditTrail
   return events.map((e: Record<string, unknown>) => ({
     timestamp: String(e.timestamp ?? ''),
     event: String(e.event_type ?? e.event ?? ''),
@@ -340,7 +338,7 @@ export async function getOverview() {
     // A real instance has no reliable "most recent deletion" endpoint to
     // call here (findLatestCertificate only probes hardcoded demo IDs) — so
     // rather than guess, this is a real "nothing yet" until that's built.
-    lastDeletionProof: HAS_LIVE_BACKEND ? null : overviewFixture.lastDeletionProof,
+    lastDeletionProof: (await hasLiveBackend()) ? null : overviewFixture.lastDeletionProof,
     _resources: resources,
     _policyStatus: policy.status,
   }
