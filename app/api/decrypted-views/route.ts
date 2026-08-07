@@ -1,28 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/tenant'
+import { getActiveProjectContext, type ActiveProjectContext } from '@/lib/project-context'
 
-const VAULT_BASE_URL = process.env.VAULT_BASE_URL
-// Same shared app-wide key every other management route (registry, deletion,
-// etc.) authenticates with -- decrypted-views.ts in Key Vault is gated by
-// the same VAULT_API_KEY hook, not a dedicated write token like the PII
-// declare route.
-const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
-
-function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+function authHeaders(context: ActiveProjectContext, extra: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra }
-  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
+  if (context.vaultApiToken) headers['Authorization'] = `Bearer ${context.vaultApiToken}`
   return headers
 }
 
 /** GET /api/decrypted-views — list this tenant's declared decrypted views. */
-export async function GET(req: NextRequest) {
-  if (!VAULT_BASE_URL) {
+export async function GET() {
+  const context = await getActiveProjectContext()
+  if (!context) {
     return NextResponse.json({ views: [] })
   }
 
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
-  const res = await fetch(`${VAULT_BASE_URL}/decrypted-views`, {
-    headers: authHeaders({ 'x-tenant-id': tenantId }),
+  const res = await fetch(`${context.vaultBaseUrl}/decrypted-views`, {
+    headers: authHeaders(context, { 'x-tenant-id': context.tenantId }),
     cache: 'no-store',
   })
 
@@ -32,16 +25,16 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/decrypted-views — declare a new decrypted view. */
 export async function POST(req: NextRequest) {
-  if (!VAULT_BASE_URL) {
-    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
   }
 
   const body = await req.json()
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
-  const res = await fetch(`${VAULT_BASE_URL}/decrypted-views`, {
+  const res = await fetch(`${context.vaultBaseUrl}/decrypted-views`, {
     method: 'POST',
-    headers: authHeaders({ 'x-tenant-id': tenantId }),
+    headers: authHeaders(context, { 'x-tenant-id': context.tenantId }),
     body: JSON.stringify(body),
   })
 

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/tenant'
+import { getActiveProjectContext, type ActiveProjectContext } from '@/lib/project-context'
 
-const VAULT_BASE_URL = process.env.VAULT_BASE_URL
-const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
-
-function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+function authHeaders(context: ActiveProjectContext, extra: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra }
-  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
+  if (context.vaultApiToken) headers['Authorization'] = `Bearer ${context.vaultApiToken}`
   return headers
 }
 
@@ -14,14 +11,14 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!VAULT_BASE_URL) {
-    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
   }
 
   const { id } = await params
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
-  const res = await fetch(`${VAULT_BASE_URL}/deletion-requests/${id}`, {
-    headers: authHeaders({ 'x-tenant-id': tenantId }),
+  const res = await fetch(`${context.vaultBaseUrl}/deletion-requests/${id}`, {
+    headers: authHeaders(context, { 'x-tenant-id': context.tenantId }),
     cache: 'no-store',
   })
 
@@ -33,17 +30,17 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!VAULT_BASE_URL) {
-    return NextResponse.json({ error: 'VAULT_BASE_URL not configured' }, { status: 503 })
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
   }
 
   const { id } = await params
   const body = await req.json()
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
 
-  const res = await fetch(`${VAULT_BASE_URL}/deletion-requests/${id}/advance`, {
+  const res = await fetch(`${context.vaultBaseUrl}/deletion-requests/${id}/advance`, {
     method: 'POST',
-    headers: authHeaders({ 'x-tenant-id': tenantId }),
+    headers: authHeaders(context, { 'x-tenant-id': context.tenantId }),
     body: JSON.stringify(body),
   })
 

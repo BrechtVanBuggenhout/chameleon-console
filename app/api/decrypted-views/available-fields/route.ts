@@ -1,20 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/tenant'
-
-const VAULT_BASE_URL = process.env.VAULT_BASE_URL
-const VAULT_API_TOKEN = process.env.VAULT_API_TOKEN
+import { NextResponse } from 'next/server'
+import { getActiveProjectContext } from '@/lib/project-context'
 
 /** GET /api/decrypted-views/available-fields — field names actually synced into pii_vault for this tenant. */
-export async function GET(req: NextRequest) {
-  if (!VAULT_BASE_URL) {
+export async function GET() {
+  const context = await getActiveProjectContext()
+  if (!context) {
     return NextResponse.json({ fields: [] })
   }
 
-  const tenantId = req.headers.get('x-tenant-id') ?? TENANT_ID
-  const headers: Record<string, string> = { 'x-tenant-id': tenantId }
-  if (VAULT_API_TOKEN) headers['Authorization'] = `Bearer ${VAULT_API_TOKEN}`
+  const headers: Record<string, string> = { 'x-tenant-id': context.tenantId }
+  if (context.vaultApiToken) headers['Authorization'] = `Bearer ${context.vaultApiToken}`
 
-  const res = await fetch(`${VAULT_BASE_URL}/decrypted-views/available-fields`, {
+  const res = await fetch(`${context.vaultBaseUrl}/decrypted-views/available-fields`, {
     headers,
     cache: 'no-store',
   })
