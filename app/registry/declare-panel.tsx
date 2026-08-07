@@ -38,6 +38,7 @@ export type DeclareInitial = {
    * (fetched fresh via GET, not derived from the lossy list-view mapping). */
   tenantIdColumn?: string
   userIdColumn?: string
+  updatedAtColumn?: string
   deletionStrategy?: string
   sourceRedactionStrategy?: string
   ghostDataScanEnabled?: boolean
@@ -128,6 +129,7 @@ export function DeclarePanel({
   const [resourceLayer, setResourceLayer] = useState<string>(initial?.resourceLayer ?? 'RAW')
   const [tenantIdColumn, setTenantIdColumn] = useState(initial?.tenantIdColumn ?? 'tenant_id')
   const [userIdColumn, setUserIdColumn] = useState(initial?.userIdColumn ?? 'user_id')
+  const [updatedAtColumn, setUpdatedAtColumn] = useState(initial?.updatedAtColumn ?? '')
   const [deletionStrategy, setDeletionStrategy] = useState<string>(initial?.deletionStrategy ?? 'CRYPTO_SHRED')
   const [sourceRedactionStrategy, setSourceRedactionStrategy] = useState<string>(
     initial?.sourceRedactionStrategy ?? 'NONE'
@@ -195,6 +197,10 @@ export function DeclarePanel({
           resourceLayer,
           tenantIdColumn: tenantIdColumn || undefined,
           userIdColumn: userIdColumn || undefined,
+          // '' (cleared/never set) still goes through explicitly, not
+          // stripped -- the backend needs to see it to actually delete a
+          // previously-set value, not just leave the old one in place.
+          updatedAtColumn: updatedAtColumn || '',
           deletionStrategy,
           sourceRedactionStrategy,
           ghostDataScan: { enabled: ghostScan },
@@ -365,6 +371,37 @@ export function DeclarePanel({
                   </p>
                 </div>
               </div>
+
+              {system === 'bigquery' && (
+                <div>
+                  <label className={labelCls}>Last-modified column (optional)</label>
+                  <select
+                    className={inputCls}
+                    value={updatedAtColumn}
+                    onChange={(e) => setUpdatedAtColumn(e.target.value)}
+                  >
+                    <option value="">— None (scan every user every day) —</option>
+                    {updatedAtColumn && !schemaColumns?.some((col) => col.name === updatedAtColumn) && (
+                      // Editing an existing declaration before "Load columns" has
+                      // been clicked this session -- keep its current value
+                      // selectable rather than silently falling back to "None".
+                      <option value={updatedAtColumn}>{updatedAtColumn}</option>
+                    )}
+                    {(schemaColumns ?? [])
+                      .filter((col) => col.dataType === 'TIMESTAMP' || col.dataType === 'DATETIME')
+                      .map((col) => (
+                        <option key={col.name} value={col.name}>
+                          {col.name}
+                        </option>
+                      ))}
+                  </select>
+                  <p className={helpCls}>
+                    {schemaColumns
+                      ? 'Which column tracks when a row last changed. Set this to sync only new/changed rows daily instead of rescanning everyone — click "Load columns" above if the one you want isn’t listed.'
+                      : 'Click "Load columns" above to pick a TIMESTAMP/DATETIME column. Set this to sync only new/changed rows daily instead of rescanning everyone.'}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className={labelCls}>What happens to this table on deletion</label>
