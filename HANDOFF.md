@@ -1,5 +1,7 @@
 # Handoff from chameleon-site to chameleon-console
 
+> **Superseded 2026-08-09.** This was the original pre-build plan — everything below describes Stage 1 (static fixtures) intentions. The console has since been fully built past all four wiring stages described here. See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how it actually works today. Kept as historical record of the original design intent, not as a current reference.
+
 This document summarizes the context and plan for developing the `chameleon-console` application, as discussed in the `chameleon-site` repository session.
 
 ## Session Context
