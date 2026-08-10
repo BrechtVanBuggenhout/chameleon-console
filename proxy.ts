@@ -24,6 +24,10 @@ export const config = {
   // (and shouldn't need) the console password. api/admin/analyst-claims: the
   // provisioner calls this with the shared Key Vault key as its own bearer
   // auth, not a browser session. api/login: the email-entry step of the
-  // magic-link flow, called before any session exists.
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|login|claim|api/claim|api/admin/analyst-claims|api/login).*)'],
+  // magic-link flow, called before any session exists. api/version: meant to
+  // be curl-able unauthenticated to verify a deploy landed, same as Key
+  // Vault's own /version and /health.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon\\.ico|login|claim|api/claim|api/admin/analyst-claims|api/login|api/version).*)',
+  ],
 }
