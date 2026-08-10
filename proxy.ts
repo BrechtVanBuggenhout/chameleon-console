@@ -26,8 +26,11 @@ export const config = {
   // auth, not a browser session. api/login: the email-entry step of the
   // magic-link flow, called before any session exists. api/version: meant to
   // be curl-able unauthenticated to verify a deploy landed, same as Key
-  // Vault's own /version and /health.
+  // Vault's own /version and /health. verify/api/verify-certificate: the
+  // whole point of independent certificate verification is that it doesn't
+  // require trusting (or logging into) this console -- an outside auditor
+  // with just a JWT should never need a session.
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|login|claim|api/claim|api/admin/analyst-claims|api/login|api/version).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|login|claim|api/claim|api/admin/analyst-claims|api/login|api/version|verify|api/verify-certificate).*)',
   ],
 }
