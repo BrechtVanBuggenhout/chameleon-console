@@ -246,6 +246,8 @@ async function parseCertificate(userId: string, data: Record<string, unknown>): 
   }
   const lineage = Array.isArray(claims.lineageSummary) ? claims.lineageSummary as { system: string }[] : []
   const affectedSystems = lineage.length ? lineage.map(l => l.system) : (proofFixture.affectedSystems as string[])
+  const lineageCoverage = claims.lineageCoverage as typeof proofFixture.certificate.lineageCoverage | undefined
+  const ghostDataSummary = claims.ghostDataSummary ?? claims.ghost_data_summary
   return {
     userId,
     deletionRequestId: String(claims.jti ?? proofFixture.deletionRequestId),
@@ -257,6 +259,17 @@ async function parseCertificate(userId: string, data: Record<string, unknown>): 
       keyFingerprint: String(claims.keyFingerprint ?? proofFixture.certificate.keyFingerprint),
       shredDate: String(claims.shredDate ?? claims.shred_date ?? proofFixture.certificate.shredDate),
       jwt,
+      // These have always been part of the signed claims -- previously
+      // decoded here and then discarded. Now actually surfaced, see
+      // app/proof/page.tsx's "What this certificate proves" section.
+      tenantId: String(claims.tenantId ?? claims.tenant_id ?? proofFixture.certificate.tenantId),
+      keyDestructionStatus: String(claims.keyDestructionStatus ?? proofFixture.certificate.keyDestructionStatus),
+      keyDestructionMethod: String(claims.keyDestructionMethod ?? proofFixture.certificate.keyDestructionMethod) as 'DEK_ERASURE',
+      lineageCoverage: lineageCoverage ?? proofFixture.certificate.lineageCoverage,
+      ghostDataSummary: Array.isArray(ghostDataSummary) ? ghostDataSummary as typeof proofFixture.certificate.ghostDataSummary : [],
+      ghostDataScanCoverage: String(claims.ghostDataScanCoverage ?? proofFixture.certificate.ghostDataScanCoverage) as 'NOT_TRACKED',
+      previousCertificateHash: (claims.previousCertificateHash as string | null | undefined) ?? null,
+      chainSequence: (claims.chainSequence as number | null | undefined) ?? null,
     },
     auditTrail: proofFixture.auditTrail,
   }
