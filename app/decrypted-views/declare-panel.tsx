@@ -24,6 +24,7 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
   const [availableFields, setAvailableFields] = useState<string[] | null>(null)
   const [fieldsLoading, setFieldsLoading] = useState(true)
   const [fieldsError, setFieldsError] = useState<string | null>(null)
+  const [queriedTenantId, setQueriedTenantId] = useState<string | null>(null)
 
   // Every decrypted view is built on top of the central pii_vault table --
   // never a customer-supplied source. Load once, on open, whatever field
@@ -35,6 +36,7 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
       .then((res) => res.json())
       .then((data) => {
         if (!active) return
+        if (typeof data.tenantId === 'string') setQueriedTenantId(data.tenantId)
         if (Array.isArray(data.fields)) {
           setAvailableFields(data.fields)
         } else {
@@ -133,7 +135,13 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
             {fieldsLoading && <p className="text-xs text-gray-400">Loading available fields…</p>}
             {fieldsError && <p className="text-xs text-red-600">{fieldsError}</p>}
             {availableFields && availableFields.length === 0 && (
-              <p className="text-xs text-gray-400">Nothing has synced into pii_vault for this tenant yet.</p>
+              <p className="text-xs text-gray-400">
+                Nothing has synced into pii_vault for tenant{' '}
+                <span className="font-mono text-gray-500">{queriedTenantId ?? '(unknown)'}</span> yet. If you
+                expected rows here, confirm this is the tenant_id the sync actually wrote under — a mismatch
+                (e.g. a per-row <code className="font-mono">tenantIdColumn</code> on the source resource vs. this
+                project&apos;s deployment tenant) looks identical to &quot;never synced&quot; from this screen.
+              </p>
             )}
             {availableFields && availableFields.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
