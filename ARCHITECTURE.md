@@ -1,6 +1,6 @@
 # Chameleon Console — Architecture
 
-*Written 2026-08-09. `HANDOFF.md` was the original pre-build plan (Stage 1-4 wiring, static-fixture-first) — it's been fully superseded by what's actually built and is kept only as historical record. This doc describes the console as it exists now.*
+*Written 2026-08-09. `HANDOFF.md` was the original pre-build plan (Stage 1-4 wiring, static-fixture-first) — it's been fully superseded by what's actually built and is kept only as historical record. This doc describes the console as it exists now. For a practical "what do I fill in, where do I see results" guide instead of internal structure, see `docs/CONSOLE_GUIDE.md`.*
 
 ## What this is
 

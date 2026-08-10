@@ -32,6 +32,34 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
   const [panelKey, setPanelKey] = useState(0)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
+  const [syncingId, setSyncingId] = useState<string | null>(null)
+  const [rowSyncMessage, setRowSyncMessage] = useState<{ id: string; message: string } | null>(null)
+
+  async function syncOne(resourceId: string) {
+    setSyncingId(resourceId)
+    setRowSyncMessage(null)
+    setRowError(null)
+    try {
+      const res = await fetch('/api/registry/sync-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': TENANT_ID },
+        body: JSON.stringify({ resourceId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setRowError({ id: resourceId, message: data.error ?? 'Sync failed' })
+        return
+      }
+      setRowSyncMessage({
+        id: resourceId,
+        message: `Queued ${data.chunks_queued} ${data.chunks_queued === 1 ? 'chunk' : 'chunks'}`,
+      })
+    } catch {
+      setRowError({ id: resourceId, message: 'Network error reaching the Key Vault' })
+    } finally {
+      setSyncingId(null)
+    }
+  }
 
   async function openEdit(resourceId: string) {
     setLoadingId(resourceId)
@@ -53,6 +81,7 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
         resourceLayer: r.resourceLayer,
         tenantIdColumn: r.tenantIdColumn,
         userIdColumn: r.userIdColumn,
+        updatedAtColumn: r.updatedAtColumn,
         deletionStrategy: r.deletionStrategy,
         sourceRedactionStrategy: r.sourceRedactionStrategy,
         ghostDataScanEnabled: r.ghostDataScan?.enabled,
@@ -99,7 +128,7 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -125,6 +154,9 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
                 Status
               </th>
               <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                Last synced
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -137,6 +169,9 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
                   <p className="mt-0.5 font-mono text-xs text-gray-400">{resource.resourceId}</p>
                   {rowError?.id === resource.resourceId && (
                     <p className="mt-1 text-xs text-red-600">{rowError.message}</p>
+                  )}
+                  {rowSyncMessage?.id === resource.resourceId && (
+                    <p className="mt-1 text-xs text-green-600">{rowSyncMessage.message}</p>
                   )}
                 </td>
                 <td className="px-5 py-3 text-sm text-gray-700">
@@ -171,11 +206,21 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
                 <td className="px-5 py-3">
                   <Badge variant={resource.status as RegistryStatus} />
                 </td>
+                <td className="px-5 py-3 text-sm text-gray-500" title={resource.lastSyncedAt ?? undefined}>
+                  {resource.lastSyncedAt ? new Date(resource.lastSyncedAt).toLocaleString() : 'Never synced'}
+                </td>
                 <td className="px-5 py-3 text-right">
                   {/* Only manually-declared entries are editable — connector/dbt-managed
                       resources are rejected by Key Vault's own PUT/DELETE guard anyway. */}
                   {resource.ownerConnector === 'manual' && (
                     <div className="flex justify-end gap-3 text-xs font-medium">
+                      <button
+                        onClick={() => syncOne(resource.resourceId)}
+                        disabled={syncingId === resource.resourceId}
+                        className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                      >
+                        {syncingId === resource.resourceId ? 'Syncing…' : 'Sync now'}
+                      </button>
                       <button
                         onClick={() => openEdit(resource.resourceId)}
                         disabled={loadingId === resource.resourceId}

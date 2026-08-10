@@ -22,6 +22,8 @@ export interface RegistryResource {
   status: RegistryStatus
   scanEnabled: boolean
   ownerConnector: string
+  /** Server-managed sync watermark (ISO8601) — undefined means never synced. */
+  lastSyncedAt?: string
 }
 
 export const registryFixtures: RegistryResource[] = [

@@ -98,6 +98,7 @@ export async function getRegistryResources(): Promise<RegistryResource[]> {
       status: String(r.status ?? 'declared') as 'declared' | 'ghost' | 'policy_warning',
       scanEnabled: Boolean(r.scanEnabled ?? r.scan_enabled ?? false),
       ownerConnector: String(r.ownerConnector ?? r.owner_connector ?? 'pipelines'),
+      lastSyncedAt: (r.lastSyncedAt ?? r.last_synced_at) ? String(r.lastSyncedAt ?? r.last_synced_at) : undefined,
     }
   })
 }

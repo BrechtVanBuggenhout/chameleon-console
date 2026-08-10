@@ -17,5 +17,9 @@ export async function GET() {
   })
 
   const data = await res.json()
-  return NextResponse.json(data, { status: res.status })
+  // Surfaced so the console can tell a customer *which* tenant_id came back
+  // empty -- otherwise "nothing synced yet" looks identical whether the
+  // sync genuinely never ran, or it ran under a different tenant_id than
+  // this project connection is currently querying with.
+  return NextResponse.json({ ...data, tenantId: context.tenantId }, { status: res.status })
 }
