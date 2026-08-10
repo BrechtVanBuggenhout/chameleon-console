@@ -326,6 +326,20 @@ export async function getDecryptedViews(): Promise<DecryptedView[]> {
   return data.views as DecryptedView[]
 }
 
+export type AuditEvent = {
+  type: 'PII_REGISTRY_DECLARED' | 'PII_REGISTRY_MODIFIED' | 'DELETION_REQUESTED'
+  resourceId: string
+  actorEmail: string
+  tenantId?: string
+  timestamp: string
+}
+
+export async function getAuditEventsForActor(email: string): Promise<AuditEvent[]> {
+  const data = await kvFetch(`/audit/actor/${encodeURIComponent(email)}`)
+  if (!data || !Array.isArray(data.events)) return []
+  return data.events as AuditEvent[]
+}
+
 export async function getOverview() {
   const [resources, policy, ghostFindings] = await Promise.all([
     getRegistryResources(),
