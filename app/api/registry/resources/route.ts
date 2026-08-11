@@ -1,6 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getActiveProjectContext } from '@/lib/project-context'
 
+/**
+ * GET /api/registry/resources — the raw, untyped registry list (unlike
+ * lib/vault-api.ts's getRegistryResources(), which is server-only and
+ * narrows to the display-focused RegistryResource shape). Used by client
+ * components that need fields RegistryResource doesn't carry, e.g. the
+ * Deletion tab's affected-resources panel needing sourceRedactionStrategy.
+ */
+export async function GET() {
+  const context = await getActiveProjectContext()
+  if (!context) {
+    return NextResponse.json({ error: 'No active project selected' }, { status: 503 })
+  }
+
+  const headers: Record<string, string> = { 'x-tenant-id': context.tenantId }
+  if (context.vaultApiToken) headers['Authorization'] = `Bearer ${context.vaultApiToken}`
+
+  const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources`, {
+    headers,
+    cache: 'no-store',
+  })
+
+  const data = await res.json()
+  return NextResponse.json(data, { status: res.status })
+}
+
 /** POST /api/registry/resources — declare a new PII resource. */
 export async function POST(req: NextRequest) {
   const context = await getActiveProjectContext()

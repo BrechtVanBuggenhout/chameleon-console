@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Badge } from '@/app/ui/badge'
 import type { RegistryStatus, Classification, DeletionStrategy, RegistryResource } from '@/lib/fixtures'
 import { DeclarePanel, type DeclareInitial } from './declare-panel'
+import { SyncProgressBar } from './sync-progress-bar'
 import { TENANT_ID } from '@/lib/tenant'
 
 const systemLabels: Record<string, string> = {
@@ -34,10 +35,12 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [rowSyncMessage, setRowSyncMessage] = useState<{ id: string; message: string } | null>(null)
+  const [rowSyncRunId, setRowSyncRunId] = useState<{ id: string; runId: string } | null>(null)
 
   async function syncOne(resourceId: string) {
     setSyncingId(resourceId)
     setRowSyncMessage(null)
+    setRowSyncRunId(null)
     setRowError(null)
     try {
       const res = await fetch('/api/registry/sync-now', {
@@ -50,10 +53,14 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
         setRowError({ id: resourceId, message: data.error ?? 'Sync failed' })
         return
       }
-      setRowSyncMessage({
-        id: resourceId,
-        message: `Queued ${data.chunks_queued} ${data.chunks_queued === 1 ? 'chunk' : 'chunks'}`,
-      })
+      if (data.runId) {
+        setRowSyncRunId({ id: resourceId, runId: data.runId })
+      } else {
+        setRowSyncMessage({
+          id: resourceId,
+          message: `Queued ${data.chunks_queued} ${data.chunks_queued === 1 ? 'chunk' : 'chunks'}`,
+        })
+      }
     } catch {
       setRowError({ id: resourceId, message: 'Network error reaching the Key Vault' })
     } finally {
@@ -173,6 +180,11 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
                   {rowSyncMessage?.id === resource.resourceId && (
                     <p className="mt-1 text-xs text-green-600">{rowSyncMessage.message}</p>
                   )}
+                  {rowSyncRunId?.id === resource.resourceId && (
+                    <div className="mt-1">
+                      <SyncProgressBar runId={rowSyncRunId.runId} />
+                    </div>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-sm text-gray-700">
                   {systemLabels[resource.system] ?? resource.system}
@@ -206,8 +218,8 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
                 <td className="px-5 py-3">
                   <Badge variant={resource.status as RegistryStatus} />
                 </td>
-                <td className="px-5 py-3 text-sm text-gray-500" title={resource.lastSyncedAt ?? undefined}>
-                  {resource.lastSyncedAt ? new Date(resource.lastSyncedAt).toLocaleString() : 'Never synced'}
+                <td className="px-5 py-3 text-sm text-gray-500" title={resource.lastSyncAttemptAt ?? undefined}>
+                  {resource.lastSyncAttemptAt ? new Date(resource.lastSyncAttemptAt).toLocaleString() : 'Never synced'}
                 </td>
                 <td className="px-5 py-3 text-right">
                   {/* Only manually-declared entries are editable — connector/dbt-managed

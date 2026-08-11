@@ -22,8 +22,17 @@ export interface RegistryResource {
   status: RegistryStatus
   scanEnabled: boolean
   ownerConnector: string
-  /** Server-managed sync watermark (ISO8601) — undefined means never synced. */
+  /**
+   * Server-managed incremental-sync watermark (ISO8601) — only ever set for
+   * a resource with an updatedAtColumn declared. Undefined does NOT mean
+   * "never synced": a resource with no updatedAtColumn does real full
+   * scans but is never eligible for this field. Use lastSyncAttemptAt for
+   * "has this resource ever actually synced" — this field is specifically
+   * about incremental-scan eligibility, not sync history.
+   */
   lastSyncedAt?: string
+  /** Server-managed (ISO8601) — set after every successful sync run, full or incremental. Undefined genuinely means never synced. */
+  lastSyncAttemptAt?: string
 }
 
 export const registryFixtures: RegistryResource[] = [
