@@ -22,8 +22,17 @@ export interface RegistryResource {
   status: RegistryStatus
   scanEnabled: boolean
   ownerConnector: string
-  /** Server-managed sync watermark (ISO8601) — undefined means never synced. */
+  /**
+   * Server-managed incremental-sync watermark (ISO8601) — only ever set for
+   * a resource with an updatedAtColumn declared. Undefined does NOT mean
+   * "never synced": a resource with no updatedAtColumn does real full
+   * scans but is never eligible for this field. Use lastSyncAttemptAt for
+   * "has this resource ever actually synced" — this field is specifically
+   * about incremental-scan eligibility, not sync history.
+   */
   lastSyncedAt?: string
+  /** Server-managed (ISO8601) — set after every successful sync run, full or incremental. Undefined genuinely means never synced. */
+  lastSyncAttemptAt?: string
 }
 
 export const registryFixtures: RegistryResource[] = [
@@ -213,6 +222,21 @@ export const proofFixture = {
     keyFingerprint: 'sha256:a1b2c3d4e5f678901234567890abcdef1234567890abcdef123456789012abcd',
     shredDate: '2026-06-23T09:12:01Z',
     jwt: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1c2VyXzg4MjEiLCJzaHJlZERhdGUiOiIyMDI2LTA2LTIzVDA5OjEyOjAxWiIsImtleUZpbmdlcnByaW50IjoiYTFiMmMzZDRlNWY2NzM5MCIsImVyYXNlZFN5c3RlbXMiOlsiYmlncXVlcnkiLCJodWJzcG90Iiwic2FsZXNmb3JjZSJdfQ.REDACTED_SIGNATURE',
+    // Fields the certificate has always signed but the page didn't render
+    // until now -- see lib/vault-api.ts's parseCertificate for how these
+    // are populated from a real certificate's decoded claims.
+    tenantId: 'default-tenant',
+    keyDestructionStatus: 'COMPLETE',
+    keyDestructionMethod: 'DEK_ERASURE' as const,
+    lineageCoverage: {
+      destinationsChecked: 3,
+      destinationsSucceeded: 3,
+      knownDestinationTypes: ['bigquery', 'hubspot', 'salesforce'],
+    },
+    ghostDataSummary: [] as { system: string; resourceId: string }[],
+    ghostDataScanCoverage: 'NOT_TRACKED' as const,
+    previousCertificateHash: 'sha256:9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a' as string | null,
+    chainSequence: 4 as number | null,
   },
   auditTrail: [
     {

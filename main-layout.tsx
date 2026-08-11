@@ -15,6 +15,8 @@ const navItems = [
   { href: '/proof', label: 'Proof', icon: '✦' },
   { href: '/integrations', label: 'Integrations', icon: '⊕' },
   { href: '/projects', label: 'Projects', icon: '⌘' },
+  { href: '/status', label: 'Status', icon: '⟐' },
+  { href: '/verify', label: 'Verify', icon: '⛨' },
   { href: '/admin/audit', label: 'Audit', icon: '⌕' },
 ];
 
