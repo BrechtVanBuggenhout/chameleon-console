@@ -144,7 +144,14 @@ export default function ProjectsPage() {
             <Field label="Region (optional)" value={form.region} onChange={(v) => setForm({ ...form, region: v })} />
           </div>
           <Field label="Key Vault URL" value={form.vaultBaseUrl} onChange={(v) => setForm({ ...form, vaultBaseUrl: v })} required placeholder="https://chameleon-key-vault-....run.app" />
-          <Field label="Tenant ID" value={form.tenantId} onChange={(v) => setForm({ ...form, tenantId: v })} required />
+          <Field
+            label="Tenant ID"
+            value={form.tenantId}
+            onChange={(v) => setForm({ ...form, tenantId: v })}
+            required
+            placeholder="default-tenant"
+            help="Almost always 'default-tenant' — the tenant_id this specific deployment's Terraform resolved to (chameleon-infra-gcp's tenant_id output, or var.tenant_id in terraform.tfvars if it was ever explicitly overridden, which normally shouldn't happen). Getting this wrong makes the console silently query the wrong tenant's data."
+          />
           <Field label="Vault API token" value={form.vaultApiToken} onChange={(v) => setForm({ ...form, vaultApiToken: v })} required type="password" />
           <Field label="Registry write token (optional)" value={form.vaultRegistryWriteToken} onChange={(v) => setForm({ ...form, vaultRegistryWriteToken: v })} type="password" />
 
@@ -196,6 +203,7 @@ function Field({
   required,
   type = 'text',
   placeholder,
+  help,
 }: {
   label: string
   value: string
@@ -203,6 +211,7 @@ function Field({
   required?: boolean
   type?: string
   placeholder?: string
+  help?: string
 }) {
   return (
     <div>
@@ -215,6 +224,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
       />
+      {help && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{help}</p>}
     </div>
   )
 }
