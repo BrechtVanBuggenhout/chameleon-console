@@ -25,6 +25,11 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
   const [fieldsLoading, setFieldsLoading] = useState(true)
   const [fieldsError, setFieldsError] = useState<string | null>(null)
   const [queriedTenantId, setQueriedTenantId] = useState<string | null>(null)
+  // Only ever populated (and only ever shown) when this tenant genuinely
+  // has nothing synced but data exists under a different tenant_id --
+  // otherwise tenant_id stays an implementation detail the user never
+  // needs to think about.
+  const [otherTenantIdsWithData, setOtherTenantIdsWithData] = useState<string[] | null>(null)
 
   // Every decrypted view is built on top of the central pii_vault table --
   // never a customer-supplied source. Load once, on open, whatever field
@@ -37,6 +42,7 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
       .then((data) => {
         if (!active) return
         if (typeof data.tenantId === 'string') setQueriedTenantId(data.tenantId)
+        if (Array.isArray(data.otherTenantIdsWithData)) setOtherTenantIdsWithData(data.otherTenantIdsWithData)
         if (Array.isArray(data.fields)) {
           setAvailableFields(data.fields)
         } else {
@@ -129,19 +135,31 @@ export function DeclarePanel({ onClose, onDeclared }: { onClose: () => void; onD
           <div>
             <label className={labelCls}>Fields to decrypt</label>
             <p className={`${helpCls} mb-2`}>
-              Every field ever synced into pii_vault for this tenant — already crypto-anchored by construction,
-              so all of these are eligible.
+              Every field ever synced into pii_vault — already crypto-anchored by construction, so all of these
+              are eligible.
             </p>
             {fieldsLoading && <p className="text-xs text-gray-400">Loading available fields…</p>}
             {fieldsError && <p className="text-xs text-red-600">{fieldsError}</p>}
             {availableFields && availableFields.length === 0 && (
-              <p className="text-xs text-gray-400">
-                Nothing has synced into pii_vault for tenant{' '}
-                <span className="font-mono text-gray-500">{queriedTenantId ?? '(unknown)'}</span> yet. If you
-                expected rows here, confirm this is the tenant_id the sync actually wrote under — a mismatch
-                (e.g. a per-row <code className="font-mono">tenantIdColumn</code> on the source resource vs. this
-                project&apos;s deployment tenant) looks identical to &quot;never synced&quot; from this screen.
-              </p>
+              <div className="text-xs text-gray-400">
+                {otherTenantIdsWithData && otherTenantIdsWithData.length > 0 ? (
+                  <p>
+                    No data found under this deployment&apos;s tenant (
+                    <span className="font-mono text-gray-500">{queriedTenantId ?? '(unknown)'}</span>) — but real
+                    synced data exists under{' '}
+                    {otherTenantIdsWithData.map((t, i) => (
+                      <span key={t}>
+                        {i > 0 && ', '}
+                        <span className="font-mono text-gray-500">{t}</span>
+                      </span>
+                    ))}
+                    . This usually means the sync wrote under a different tenant than this project is configured to
+                    read — worth checking with whoever set up this deployment.
+                  </p>
+                ) : (
+                  <p>Nothing has synced into pii_vault yet.</p>
+                )}
+              </div>
             )}
             {availableFields && availableFields.length > 0 && (
               <div className="flex flex-wrap gap-1.5">

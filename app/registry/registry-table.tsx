@@ -206,8 +206,8 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
                 <td className="px-5 py-3">
                   <Badge variant={resource.status as RegistryStatus} />
                 </td>
-                <td className="px-5 py-3 text-sm text-gray-500" title={resource.lastSyncedAt ?? undefined}>
-                  {resource.lastSyncedAt ? new Date(resource.lastSyncedAt).toLocaleString() : 'Never synced'}
+                <td className="px-5 py-3 text-sm text-gray-500" title={resource.lastSyncAttemptAt ?? undefined}>
+                  {resource.lastSyncAttemptAt ? new Date(resource.lastSyncAttemptAt).toLocaleString() : 'Never synced'}
                 </td>
                 <td className="px-5 py-3 text-right">
                   {/* Only manually-declared entries are editable — connector/dbt-managed
