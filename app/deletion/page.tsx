@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TENANT_ID } from '@/lib/tenant'
+import { AffectedResourcesPanel } from './affected-resources'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'error'
 
@@ -307,6 +308,8 @@ export default function DeletionPage() {
               ⚠ {error}
             </p>
           )}
+
+          <AffectedResourcesPanel />
         </div>
       </div>
 
