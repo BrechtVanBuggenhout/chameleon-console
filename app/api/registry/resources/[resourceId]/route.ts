@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getActiveProjectContext, type ActiveProjectContext } from '@/lib/project-context'
+import { resolveWriteAuthHeaders } from '@/lib/session-credential'
 
-function writeHeaders(context: ActiveProjectContext): Record<string, string> {
-  const headers: Record<string, string> = {
+async function writeHeaders(context: ActiveProjectContext): Promise<Record<string, string>> {
+  const fallbackHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-tenant-id': context.tenantId,
     Authorization: `Bearer ${context.vaultRegistryWriteToken}`,
   }
-  if (context.vaultApiToken) headers['x-api-key'] = context.vaultApiToken
-  return headers
+  if (context.vaultApiToken) fallbackHeaders['x-api-key'] = context.vaultApiToken
+  return resolveWriteAuthHeaders(context, fallbackHeaders)
 }
 
 /** GET /api/registry/resources/:resourceId — fetch full detail for editing. */
@@ -46,7 +47,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ reso
 
   const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'PUT',
-    headers: writeHeaders(context),
+    headers: await writeHeaders(context),
     body: JSON.stringify(body),
   })
 
@@ -68,7 +69,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
 
   const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'DELETE',
-    headers: writeHeaders(context),
+    headers: await writeHeaders(context),
   })
 
   const data = await res.json()

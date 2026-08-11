@@ -17,6 +17,7 @@ const navItems = [
   { href: '/projects', label: 'Projects', icon: '⌘' },
   { href: '/status', label: 'Status', icon: '⟐' },
   { href: '/verify', label: 'Verify', icon: '⛨' },
+  { href: '/admin/audit', label: 'Audit', icon: '⌕' },
 ];
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
