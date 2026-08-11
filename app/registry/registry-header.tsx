@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { DeclarePanel, type DeclareInitial } from './declare-panel'
+import { SyncProgressBar } from './sync-progress-bar'
 import { TENANT_ID } from '@/lib/tenant'
 
 type DiscoveryFinding = {
@@ -22,6 +23,7 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
   const [findings, setFindings] = useState<DiscoveryFinding[]>([])
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [syncRunId, setSyncRunId] = useState<string | null>(null)
 
   const loadFindings = useCallback(async () => {
     try {
@@ -58,6 +60,7 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
   async function syncNow() {
     setSyncing(true)
     setSyncMessage(null)
+    setSyncRunId(null)
     try {
       const res = await fetch('/api/registry/sync-now', { method: 'POST', headers: { 'x-tenant-id': TENANT_ID } })
       const data = await res.json()
@@ -65,11 +68,17 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
         setSyncMessage(data.error ?? 'Sync failed')
         return
       }
-      // The sync job now enumerates and fans out per-chunk work over
-      // Pub/Sub instead of processing everything inline, so this response
-      // is a queued count, not a final result -- actual encryption happens
-      // moments later, off-screen.
-      setSyncMessage(`Queued ${data.chunks_queued} ${data.chunks_queued === 1 ? 'chunk' : 'chunks'} across ${data.resources_queued} ${data.resources_queued === 1 ? 'resource' : 'resources'}`)
+      // The sync job enumerates and fans out per-chunk work over Pub/Sub
+      // instead of processing everything inline, so this response is a
+      // queued count, not a final result. When a runId comes back, the
+      // progress bar takes over and polls for real completion; otherwise
+      // (Key Vault couldn't create the sync_runs record) fall back to the
+      // static queued-count message.
+      if (data.runId) {
+        setSyncRunId(data.runId)
+      } else {
+        setSyncMessage(`Queued ${data.chunks_queued} ${data.chunks_queued === 1 ? 'chunk' : 'chunks'} across ${data.resources_queued} ${data.resources_queued === 1 ? 'resource' : 'resources'}`)
+      }
     } catch {
       setSyncMessage('Sync failed — could not reach Key Vault')
     } finally {
@@ -114,9 +123,13 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
               Declare PII dataset
             </button>
           </div>
-          <p className="text-xs text-gray-400">
-            {syncMessage ?? 'Syncs automatically every day at 7:00 AM UTC'}
-          </p>
+          {syncRunId ? (
+            <SyncProgressBar runId={syncRunId} />
+          ) : (
+            <p className="text-xs text-gray-400">
+              {syncMessage ?? 'Syncs automatically every day at 7:00 AM UTC'}
+            </p>
+          )}
         </div>
       </div>
 
