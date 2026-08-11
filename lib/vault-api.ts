@@ -361,4 +361,32 @@ export async function getOverview() {
   }
 }
 
+export type ServiceVersionInfo = {
+  service: string
+  sourceSha: string | null
+  builtAt: string | null
+  sources: Record<string, string> | null
+}
+
+export async function getVersionInfo(): Promise<ServiceVersionInfo | null> {
+  const data = await kvFetch('/version')
+  if (!data) return null
+  return data as ServiceVersionInfo
+}
+
+export type SourceStalenessResult = {
+  status: 'ok' | 'not_applicable' | 'error'
+  results?: Record<
+    string,
+    { status: 'stale' | 'current' | 'unknown'; builtSha?: string; latestSha?: string; reason?: string }
+  >
+  reason?: string
+}
+
+export async function getSourceStaleness(): Promise<SourceStalenessResult | null> {
+  const data = await kvFetch('/version/source-staleness')
+  if (!data) return null
+  return data as SourceStalenessResult
+}
+
 export { deletionFixture }
