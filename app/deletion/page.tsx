@@ -15,6 +15,23 @@ interface KeyStatusResponse {
   shred_at?: string | null
 }
 
+interface JanitorWipe {
+  destination: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'DLQ'
+}
+
+interface DeletionRequestResponse {
+  status: string
+  janitor_wipes?: JanitorWipe[]
+}
+
+function summarizeWipes(wipes: JanitorWipe[] | undefined): string {
+  if (!wipes || wipes.length === 0) return 'No external SaaS destinations registered'
+  const failed = wipes.filter(w => w.status === 'FAILED' || w.status === 'DLQ')
+  if (failed.length === 0) return `${wipes.length} destination${wipes.length === 1 ? '' : 's'} wiped`
+  return `Failed: ${failed.map(w => w.destination).join(', ')}`
+}
+
 interface Step {
   id: string
   label: string
@@ -157,16 +174,24 @@ export default function DeletionPage() {
     return res.json()
   }
 
-  async function pollUntilComplete(id: string, timeoutMs = 20000) {
+  // CASCADE_PARTIAL_FAILURE and CASCADE_COMPLETE are just as terminal as
+  // CERTIFICATE_ISSUED -- the cascade reached a real, final answer, it just
+  // wasn't success. Treating only CERTIFICATE_ISSUED as "done" meant a fast,
+  // correctly-reported failure looked identical to a genuine stall: this
+  // loop kept polling for the full timeout and threw a misleading "timed
+  // out" error instead of surfacing the real (and already-known) reason.
+  const TERMINAL_STATUSES = new Set(['CERTIFICATE_ISSUED', 'CASCADE_PARTIAL_FAILURE', 'CASCADE_COMPLETE'])
+
+  async function pollUntilComplete(id: string, timeoutMs = 20000): Promise<DeletionRequestResponse> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 1000))
       const res = await fetch(`/api/deletion/${id}`, { headers: { 'x-tenant-id': TENANT_ID }, cache: 'no-store' })
       if (!res.ok) continue
-      const data = (await res.json()) as { status: string }
-      if (data.status === 'CERTIFICATE_ISSUED') return data
+      const data = (await res.json()) as DeletionRequestResponse
+      if (TERMINAL_STATUSES.has(data.status)) return data
     }
-    throw new Error('Timed out waiting for certificate issuance')
+    throw new Error('Timed out waiting for a cascade result — the request may still be running; check the Proof page shortly')
   }
 
   async function handleTrigger() {
@@ -212,8 +237,21 @@ export default function DeletionPage() {
       patchStep('cascade', { status: 'running' })
       const t3 = Date.now()
       await advanceRequest(reqId, 'CASCADE_PENDING', operationId)
-      await pollUntilComplete(reqId)
-      patchStep('cascade', { status: 'done', detail: 'No external SaaS destinations registered', durationMs: Date.now() - t3 })
+      const result = await pollUntilComplete(reqId)
+
+      if (result.status === 'CASCADE_PARTIAL_FAILURE') {
+        patchStep('cascade', { status: 'error', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+        throw new Error('Cascade could not reach every destination — certificate withheld. See the failed step above.')
+      }
+      if (result.status === 'CASCADE_COMPLETE') {
+        // Rare: every destination succeeded but certificate issuance itself
+        // then failed. The cascade step is genuinely done -- don't mark it
+        // an error -- the failure is specifically in step 4.
+        patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+        patchStep('cert', { status: 'error' })
+        throw new Error('Cascade succeeded but certificate issuance failed. Retry, or check Cloud Logging for the cause.')
+      }
+      patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
 
       // Step 4 — certificate (auto-issued after cascade)
       patchStep('cert', { status: 'done', detail: `cert_${userId}` })
