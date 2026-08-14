@@ -25,8 +25,14 @@ interface DeletionRequestResponse {
   janitor_wipes?: JanitorWipe[]
 }
 
+// Covers two kinds of destination under one step, both gated the same way
+// by the backend (see chameleon-key-vault's deletion-request-service.ts):
+// real SaaS connector wipes (HubSpot, Salesforce) AND declared BigQuery
+// resources with a source-redaction strategy (REDACT_IN_PLACE/SHADOW_COPY).
+// A failure here can be either kind -- "destination" below may be a SaaS
+// system name or a bigquery:... resourceId.
 function summarizeWipes(wipes: JanitorWipe[] | undefined): string {
-  if (!wipes || wipes.length === 0) return 'No external SaaS destinations registered'
+  if (!wipes || wipes.length === 0) return 'No downstream systems to wipe'
   const failed = wipes.filter(w => w.status === 'FAILED' || w.status === 'DLQ')
   if (failed.length === 0) return `${wipes.length} destination${wipes.length === 1 ? '' : 's'} wiped`
   return `Failed: ${failed.map(w => w.destination).join(', ')}`
@@ -97,7 +103,7 @@ function StepRow({ step, index }: { step: Step; index: number }) {
 const INITIAL_STEPS: Step[] = [
   { id: 'create', label: 'Deletion request created', system: 'Key Vault', status: 'pending' },
   { id: 'key', label: 'Encryption key destroyed', system: 'Key Vault', status: 'pending' },
-  { id: 'cascade', label: 'SaaS systems wiped', system: 'Key Vault', status: 'pending' },
+  { id: 'cascade', label: 'Downstream systems wiped', system: 'Key Vault', status: 'pending' },
   { id: 'cert', label: 'Certificate of destruction issued', system: 'Key Vault', status: 'pending' },
 ]
 
@@ -233,7 +239,8 @@ export default function DeletionPage() {
       await advanceRequest(reqId, 'KEY_DESTROYED', operationId)
       patchStep('key', { status: 'done', detail: 'KMS key version destroyed — data is now unreadable', durationMs: Date.now() - t2 })
 
-      // Step 3 — trigger SaaS cascade (auto-completes if no SaaS destinations)
+      // Step 3 — trigger the cascade: real SaaS wipes plus any declared
+      // BigQuery source-redaction (auto-completes if neither applies)
       patchStep('cascade', { status: 'running' })
       const t3 = Date.now()
       await advanceRequest(reqId, 'CASCADE_PENDING', operationId)
@@ -273,7 +280,7 @@ export default function DeletionPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Deletion</h1>
         <p className="mt-1 text-sm text-gray-500">
-          User deletion lifecycle — key destruction, SaaS wipes, and proof issuance.
+          User deletion lifecycle — key destruction, downstream wipes, and proof issuance.
         </p>
       </div>
 
