@@ -395,6 +395,13 @@ export type SourceStalenessResult = {
     { status: 'stale' | 'current' | 'unknown'; builtSha?: string; latestSha?: string; reason?: string }
   >
   reason?: string
+  /** Pre-built-image path's update check -- present regardless of `status`/`results` above, which are the self-build path's. */
+  platformVersion?: {
+    status: 'stale' | 'current' | 'unknown'
+    currentVersion?: string
+    latestVersion?: string
+    reason?: string
+  }
 }
 
 export async function getSourceStaleness(): Promise<SourceStalenessResult | null> {

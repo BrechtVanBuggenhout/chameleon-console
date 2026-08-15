@@ -39,6 +39,7 @@ export default async function StatusPage() {
 
   const sources = version.sources ?? {}
   const services = Object.keys(SERVICE_LABELS).filter((k) => sources[k] !== undefined || k === 'key-vault' || k === 'console')
+  const platformVersion = staleness?.platformVersion
 
   return (
     <div>
@@ -50,6 +51,23 @@ export default async function StatusPage() {
           without needing one.
         </p>
       </div>
+
+      {platformVersion?.status === 'stale' && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-4">
+          <div>
+            <p className="text-sm font-semibold text-indigo-900">
+              Update available: {platformVersion.latestVersion}
+              {platformVersion.currentVersion && (
+                <span className="font-normal text-indigo-700"> (you&apos;re on {platformVersion.currentVersion})</span>
+              )}
+            </p>
+            <p className="mt-1 text-xs text-indigo-700">Run this from your install directory to pull it in:</p>
+          </div>
+          <code className="whitespace-nowrap rounded bg-indigo-900 px-3 py-1.5 text-xs text-indigo-50">
+            ./scripts/update.sh
+          </code>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
