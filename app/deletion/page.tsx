@@ -18,11 +18,13 @@ interface KeyStatusResponse {
 interface JanitorWipe {
   destination: string
   status: 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'DLQ'
+  details?: { error?: string; [key: string]: unknown }
 }
 
 interface DeletionRequestResponse {
   status: string
   janitor_wipes?: JanitorWipe[]
+  alreadyExisted?: boolean
 }
 
 // Covers two kinds of destination under one step, both gated the same way
@@ -35,7 +37,10 @@ function summarizeWipes(wipes: JanitorWipe[] | undefined): string {
   if (!wipes || wipes.length === 0) return 'No downstream systems to wipe'
   const failed = wipes.filter(w => w.status === 'FAILED' || w.status === 'DLQ')
   if (failed.length === 0) return `${wipes.length} destination${wipes.length === 1 ? '' : 's'} wiped`
-  return `Failed: ${failed.map(w => w.destination).join(', ')}`
+  // details.error is only populated for source-redaction failures today
+  // (see source-redaction-service.ts) -- SaaS janitor failures don't carry
+  // a message yet, so those still just show the destination name.
+  return `Failed: ${failed.map(w => w.details?.error ? `${w.destination} (${w.details.error})` : w.destination).join(', ')}`
 }
 
 interface Step {
@@ -200,6 +205,105 @@ export default function DeletionPage() {
     throw new Error('Timed out waiting for a cascade result — the request may still be running; check the Proof page shortly')
   }
 
+  // Shared by a fresh request (CASCADE_PENDING) and a retry of a stuck one
+  // (CASCADE_IN_PROGRESS, see deletion-request-service.ts) -- both trigger
+  // the same cleanup loop on the backend, so the console shouldn't drift
+  // from that by having two separate polling implementations.
+  async function runCascade(reqId: string, operationId: string, triggerStatus: 'CASCADE_PENDING' | 'CASCADE_IN_PROGRESS') {
+    patchStep('cascade', { status: 'running' })
+    const t3 = Date.now()
+    await advanceRequest(reqId, triggerStatus, operationId)
+    const result = await pollUntilComplete(reqId)
+
+    if (result.status === 'CASCADE_PARTIAL_FAILURE') {
+      patchStep('cascade', { status: 'error', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+      throw new Error('Cascade could not reach every destination — certificate withheld. See the failed step above.')
+    }
+    if (result.status === 'CASCADE_COMPLETE') {
+      // Rare: every destination succeeded but certificate issuance itself
+      // then failed. The cascade step is genuinely done -- don't mark it
+      // an error -- the failure is specifically in step 4.
+      patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+      patchStep('cert', { status: 'error' })
+      throw new Error('Cascade succeeded but certificate issuance failed. Retry, or check Cloud Logging for the cause.')
+    }
+    patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+
+    // Step 4 — certificate (auto-issued after cascade)
+    patchStep('cert', { status: 'done', detail: `cert_${userId}` })
+    setCompletedAt(Date.now())
+  }
+
+  // POST /api/deletion is idempotent: submitting the same userId again
+  // returns whatever request already exists instead of erroring (see
+  // alreadyExisted on the create response). Before this fix, the console
+  // ignored that flag entirely and blindly tried to advance the returned
+  // request straight to KEY_DESTROYED -- which the backend correctly
+  // rejects once a request is already past that point, surfacing as a
+  // confusing "Invalid state transition" error with no way to actually
+  // retry a stuck (CASCADE_PARTIAL_FAILURE) request. This resumes from
+  // wherever the existing request actually is instead.
+  async function resumeExistingRequest(reqId: string, status: string, operationId: string) {
+    const keyAlreadyDestroyed = status !== 'SHRED_REQUESTED'
+    if (keyAlreadyDestroyed) {
+      patchStep('key', { status: 'done', detail: 'Already destroyed in a previous attempt' })
+    }
+
+    switch (status) {
+      case 'SHRED_REQUESTED': {
+        // Only reachable if a previous attempt died between create and key
+        // destruction (e.g. a concurrent request) -- pick up from here.
+        patchStep('key', { status: 'running' })
+        const t2 = Date.now()
+        await advanceRequest(reqId, 'KEY_DESTROYED', operationId)
+        patchStep('key', { status: 'done', detail: 'KMS key version destroyed — data is now unreadable', durationMs: Date.now() - t2 })
+        await runCascade(reqId, operationId, 'CASCADE_PENDING')
+        return
+      }
+      case 'KEY_DESTROYED':
+        // Key destroyed, cascade never triggered -- start it now.
+        await runCascade(reqId, operationId, 'CASCADE_PENDING')
+        return
+      case 'CASCADE_PENDING':
+      case 'CASCADE_IN_PROGRESS': {
+        // A cascade is already running from a previous or concurrent call
+        // -- don't trigger a second one, just wait for the one already
+        // in flight to land.
+        patchStep('cascade', { status: 'running' })
+        const t3 = Date.now()
+        const result = await pollUntilComplete(reqId)
+        if (result.status === 'CASCADE_PARTIAL_FAILURE') {
+          patchStep('cascade', { status: 'error', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+          throw new Error('Cascade could not reach every destination — certificate withheld. See the failed step above.')
+        }
+        patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
+        patchStep('cert', { status: 'done', detail: `cert_${userId}` })
+        setCompletedAt(Date.now())
+        return
+      }
+      case 'CASCADE_PARTIAL_FAILURE':
+        // The actual retry path this fix adds: re-run the cleanup loop
+        // instead of colliding with a from-scratch request.
+        await runCascade(reqId, operationId, 'CASCADE_IN_PROGRESS')
+        return
+      case 'CASCADE_COMPLETE':
+        // Rare: every destination succeeded but certificate issuance itself
+        // failed previously. Retry just that step.
+        patchStep('cascade', { status: 'done', detail: 'Already wiped in a previous attempt' })
+        await advanceRequest(reqId, 'CERTIFICATE_ISSUED', operationId)
+        patchStep('cert', { status: 'done', detail: `cert_${userId}` })
+        setCompletedAt(Date.now())
+        return
+      case 'CERTIFICATE_ISSUED':
+        patchStep('cascade', { status: 'done', detail: 'Already wiped in a previous attempt' })
+        patchStep('cert', { status: 'done', detail: `cert_${userId}` })
+        setCompletedAt(Date.now())
+        return
+      default:
+        throw new Error(`Existing deletion request is in an unexpected state: ${status}`)
+    }
+  }
+
   async function handleTrigger() {
     if (!userId.trim()) return
     setRunning(true)
@@ -223,14 +327,22 @@ export default function DeletionPage() {
       })
       if (!createRes.ok) {
         const err = (await createRes.json().catch(() => ({}))) as { message?: string; statusCode?: number }
-        if (createRes.status === 409) {
-          throw new Error(`A deletion is already in progress for ${userId}. Check the Proof page for its status.`)
-        }
         throw new Error(err.message ?? 'Failed to create deletion request')
       }
-      const created = (await createRes.json()) as { deletionRequestId?: string; deletion_request_id?: string }
+      const created = (await createRes.json()) as {
+        deletionRequestId?: string
+        deletion_request_id?: string
+        status?: string
+        alreadyExisted?: boolean
+      }
       const reqId = created.deletionRequestId ?? created.deletion_request_id ?? ''
       setDeletionRequestId(reqId)
+
+      if (created.alreadyExisted) {
+        patchStep('create', { status: 'done', detail: `${reqId} (existing request)`, durationMs: Date.now() - t1 })
+        await resumeExistingRequest(reqId, created.status ?? '', operationId)
+        return
+      }
       patchStep('create', { status: 'done', detail: reqId, durationMs: Date.now() - t1 })
 
       // Step 2 — destroy encryption key
@@ -241,28 +353,7 @@ export default function DeletionPage() {
 
       // Step 3 — trigger the cascade: real SaaS wipes plus any declared
       // BigQuery source-redaction (auto-completes if neither applies)
-      patchStep('cascade', { status: 'running' })
-      const t3 = Date.now()
-      await advanceRequest(reqId, 'CASCADE_PENDING', operationId)
-      const result = await pollUntilComplete(reqId)
-
-      if (result.status === 'CASCADE_PARTIAL_FAILURE') {
-        patchStep('cascade', { status: 'error', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
-        throw new Error('Cascade could not reach every destination — certificate withheld. See the failed step above.')
-      }
-      if (result.status === 'CASCADE_COMPLETE') {
-        // Rare: every destination succeeded but certificate issuance itself
-        // then failed. The cascade step is genuinely done -- don't mark it
-        // an error -- the failure is specifically in step 4.
-        patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
-        patchStep('cert', { status: 'error' })
-        throw new Error('Cascade succeeded but certificate issuance failed. Retry, or check Cloud Logging for the cause.')
-      }
-      patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
-
-      // Step 4 — certificate (auto-issued after cascade)
-      patchStep('cert', { status: 'done', detail: `cert_${userId}` })
-      setCompletedAt(Date.now())
+      await runCascade(reqId, operationId, 'CASCADE_PENDING')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
