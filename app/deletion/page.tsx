@@ -185,13 +185,20 @@ export default function DeletionPage() {
     return res.json()
   }
 
-  // CASCADE_PARTIAL_FAILURE and CASCADE_COMPLETE are just as terminal as
-  // CERTIFICATE_ISSUED -- the cascade reached a real, final answer, it just
-  // wasn't success. Treating only CERTIFICATE_ISSUED as "done" meant a fast,
-  // correctly-reported failure looked identical to a genuine stall: this
-  // loop kept polling for the full timeout and threw a misleading "timed
-  // out" error instead of surfacing the real (and already-known) reason.
-  const TERMINAL_STATUSES = new Set(['CERTIFICATE_ISSUED', 'CASCADE_PARTIAL_FAILURE', 'CASCADE_COMPLETE'])
+  // CASCADE_PARTIAL_FAILURE is a real, stable terminal state (the backend
+  // never auto-advances out of it). CASCADE_COMPLETE is NOT -- deletion-
+  // request-service.ts's CASCADE_COMPLETE case always immediately recurses
+  // into CERTIFICATE_ISSUED in the same call (or, if that step itself
+  // throws, force-recovers into CASCADE_PARTIAL_FAILURE -- see its own
+  // "never a silent stall" handling). So a poll that catches the document
+  // at CASCADE_COMPLETE has just raced an in-flight transition, not found a
+  // real resting state. Treating it as terminal here (previously) meant a
+  // real, successfully-issued certificate could still get reported as
+  // "certificate issuance failed" if the poll happened to land in that
+  // narrow window -- confirmed live on Immoscoop 2026-08-17: a valid,
+  // chained certificate existed in GCS for a request the console had
+  // reported as failed.
+  const TERMINAL_STATUSES = new Set(['CERTIFICATE_ISSUED', 'CASCADE_PARTIAL_FAILURE'])
 
   async function pollUntilComplete(id: string, timeoutMs = 20000): Promise<DeletionRequestResponse> {
     const deadline = Date.now() + timeoutMs
@@ -219,14 +226,9 @@ export default function DeletionPage() {
       patchStep('cascade', { status: 'error', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
       throw new Error('Cascade could not reach every destination — certificate withheld. See the failed step above.')
     }
-    if (result.status === 'CASCADE_COMPLETE') {
-      // Rare: every destination succeeded but certificate issuance itself
-      // then failed. The cascade step is genuinely done -- don't mark it
-      // an error -- the failure is specifically in step 4.
-      patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
-      patchStep('cert', { status: 'error' })
-      throw new Error('Cascade succeeded but certificate issuance failed. Retry, or check Cloud Logging for the cause.')
-    }
+    // result.status is now always CERTIFICATE_ISSUED here -- CASCADE_COMPLETE
+    // is no longer in TERMINAL_STATUSES (see above), so pollUntilComplete
+    // keeps polling straight through it to the real outcome.
     patchStep('cascade', { status: 'done', detail: summarizeWipes(result.janitor_wipes), durationMs: Date.now() - t3 })
 
     // Step 4 — certificate (auto-issued after cascade)
