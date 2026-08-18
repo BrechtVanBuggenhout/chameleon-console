@@ -26,6 +26,15 @@ export default async function OperatorLoginPage({
   searchParams: Promise<{ error?: string }>
 }) {
   const { error } = await searchParams
+  // A real deployed instance always has CONSOLE_PASSWORD set (Terraform
+  // auto-generates it into Secret Manager -- see key_vault.tf's
+  // console_password resources -- and injects it as this Cloud Run
+  // service's env var; nobody ever hand-types it). Unset only happens for
+  // local `npm run dev`, where the app-level password check is a no-op by
+  // design. The old copy here ("Set CONSOLE_PASSWORD in .env.local") was
+  // written for that local case and was confusingly wrong on every real
+  // deployment -- found live on Immoscoop's console 2026-08-18.
+  const isLocalDev = !process.env.CONSOLE_PASSWORD
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -71,9 +80,22 @@ export default async function OperatorLoginPage({
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-400">
-          Set{' '}
-          <code className="rounded bg-gray-100 px-1 py-0.5">CONSOLE_PASSWORD</code> in{' '}
-          <code className="rounded bg-gray-100 px-1 py-0.5">.env.local</code>
+          {isLocalDev ? (
+            <>
+              Set{' '}
+              <code className="rounded bg-gray-100 px-1 py-0.5">CONSOLE_PASSWORD</code> in{' '}
+              <code className="rounded bg-gray-100 px-1 py-0.5">.env.local</code> (local dev only —
+              left unset here, so any password is accepted)
+            </>
+          ) : (
+            <>
+              This deployment&rsquo;s password lives in Secret Manager as{' '}
+              <code className="rounded bg-gray-100 px-1 py-0.5">console-password-&lt;your-instance&gt;</code>,
+              auto-generated when this was deployed — nobody types it in by hand. Retrieve it with{' '}
+              <code className="rounded bg-gray-100 px-1 py-0.5">gcloud secrets versions access latest --secret=console-password-&lt;your-instance&gt; --project=&lt;your-gcp-project&gt;</code>,
+              or ask whoever deployed this instance.
+            </>
+          )}
         </p>
         <p className="mt-2 text-center text-xs text-gray-400">
           <a href="/login" className="underline hover:text-gray-600">Log in with your email instead</a>
