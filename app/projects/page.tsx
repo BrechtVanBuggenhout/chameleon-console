@@ -104,10 +104,10 @@ export default function ProjectsPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Projects</h1>
+        <h1 className="text-lg font-semibold text-gray-900">Projects</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 dark:bg-white dark:text-gray-900"
+          className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
         >
           {showForm ? 'Cancel' : 'Add project'}
         </button>
@@ -116,9 +116,9 @@ export default function ProjectsPage() {
       {showForm && (
         <form
           onSubmit={handleAddProject}
-          className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+          className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4"
         >
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-gray-500">
             Register a Chameleon instance you already ran <code>bootstrap.sh</code> for. Find
             these values in that run&rsquo;s output or your <code>terraform.tfvars</code>.
           </p>
@@ -130,11 +130,11 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Label" value={form.label} onChange={(v) => setForm({ ...form, label: v })} required />
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Environment</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Environment</label>
               <select
                 value={form.environment}
                 onChange={(e) => setForm({ ...form, environment: e.target.value as 'dev' | 'prod' })}
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
                 <option value="prod">prod</option>
                 <option value="dev">dev</option>
@@ -158,7 +158,7 @@ export default function ProjectsPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-white dark:text-gray-900"
+            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60"
           >
             {submitting ? 'Adding…' : 'Add project'}
           </button>
@@ -170,12 +170,12 @@ export default function ProjectsPage() {
       ) : projects.length === 0 ? (
         <p className="text-sm text-gray-500">No projects registered yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
+        <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
           {projects.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{p.label}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-sm font-medium text-gray-900">{p.label}</p>
+                <p className="text-xs text-gray-500">
                   {p.environment}
                   {p.gcpProjectId ? ` · ${p.gcpProjectId}` : ''}
                   {p.region ? ` · ${p.region}` : ''}
@@ -184,7 +184,7 @@ export default function ProjectsPage() {
               <button
                 onClick={() => selectProject(p.id)}
                 disabled={selecting === p.id}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
               >
                 {selecting === p.id ? 'Switching…' : 'Switch to this project'}
               </button>
@@ -215,16 +215,16 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
       <input
         type={type}
         value={value}
         required={required}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
       />
-      {help && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{help}</p>}
+      {help && <p className="mt-1 text-xs text-gray-400">{help}</p>}
     </div>
   )
 }

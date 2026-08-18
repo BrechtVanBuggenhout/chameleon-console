@@ -1,6 +1,18 @@
 @import "tailwindcss";
 
+/* This console has one fixed light theme -- every page's text/background
+   colors are hardcoded Tailwind grays assuming a light background (the
+   dark sidebar is a deliberate brand color, not an OS-dark-mode toggle).
+   color-scheme: light stops browsers from auto-dark-styling native form
+   controls (inputs, selects) under an OS/browser dark preference, which
+   otherwise clashes with the hardcoded dark text colors -- confirmed live
+   as unreadable input text and page titles on Audit/Deletion under dark
+   mode. Previously this file also flipped --background/--foreground via
+   `@media (prefers-color-scheme: dark)` (default create-next-app
+   boilerplate, never actually adopted by any page here) -- removed, since
+   no page here ever accounted for a dark variant. */
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -10,13 +22,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
