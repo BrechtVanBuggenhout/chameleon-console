@@ -74,7 +74,7 @@ export function VerifyForm() {
 
       {result && !result.verified && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-4">
-          <p className="text-sm font-semibold text-red-800">❌ Not verified</p>
+          <p className="text-sm font-semibold text-red-800">Not verified</p>
           <p className="mt-1 text-sm text-red-700">{result.error}</p>
         </div>
       )}
@@ -82,11 +82,11 @@ export function VerifyForm() {
       {result && result.verified && (
         <div className="overflow-hidden rounded-lg border border-green-200 bg-white shadow-sm">
           <div className="border-b border-green-200 bg-green-50 px-5 py-4">
-            <p className="text-sm font-semibold text-green-800">✅ Signature verified</p>
+            <p className="text-sm font-semibold text-green-800">Signature verified</p>
             <p className="mt-1 text-xs text-green-700">
               {result.chain.complete
                 ? `${result.chain.depth} certificate(s) confirmed${result.chain.note ? ` — ${result.chain.note}` : ' back to the first certificate in this chain'}.`
-                : `Chain broken at hash ${result.chain.brokenAtHash?.slice(0, 12)}… — ${result.chain.depth} certificate(s) confirmed before the break.`}
+                : `Verified back through ${result.chain.depth} certificate(s). Key Vault has no earlier record past hash ${result.chain.brokenAtHash?.slice(0, 12)}… — this doesn't mean tampering; it means that link's certificate isn't retrievable from this deployment (e.g. it predates this chain, or wasn't fully persisted when it was issued).`}
             </p>
           </div>
           <dl className="divide-y divide-gray-100">
