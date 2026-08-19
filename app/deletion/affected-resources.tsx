@@ -11,17 +11,34 @@ interface RawResource {
   system?: string
   sourceRedactionStrategy?: string
   source_redaction_strategy?: string
+  sourceRedactionStrategies?: string[]
+  source_redaction_strategies?: string[]
 }
+
+type RedactionStrategy = 'REDACT_IN_PLACE' | 'SHADOW_COPY' | 'ENCRYPTED_COPY'
 
 interface RedactedSource {
   resourceId: string
   displayName: string
-  strategy: 'REDACT_IN_PLACE' | 'SHADOW_COPY'
+  /** Independently combinable -- a resource can now carry more than one at once (see resolveSourceRedactionStrategies in chameleon-key-vault). */
+  strategies: RedactionStrategy[]
 }
 
-const strategyLabels: Record<RedactedSource['strategy'], string> = {
+const strategyLabels: Record<RedactionStrategy, string> = {
   REDACT_IN_PLACE: 'redact in place',
   SHADOW_COPY: 'shadow copy',
+  ENCRYPTED_COPY: 'encrypted copy',
+}
+
+const REDACTION_STRATEGIES: RedactionStrategy[] = ['REDACT_IN_PLACE', 'SHADOW_COPY', 'ENCRYPTED_COPY']
+
+/** Mirrors chameleon-key-vault's resolveSourceRedactionStrategies(): the array
+ * field wins if present, else the legacy singular field wrapped (dropping 'NONE'). */
+function resolveStrategies(r: RawResource): RedactionStrategy[] {
+  const arr = r.sourceRedactionStrategies ?? r.source_redaction_strategies
+  if (arr) return arr.filter((s): s is RedactionStrategy => REDACTION_STRATEGIES.includes(s as RedactionStrategy))
+  const legacy = r.sourceRedactionStrategy ?? r.source_redaction_strategy
+  return legacy && REDACTION_STRATEGIES.includes(legacy as RedactionStrategy) ? [legacy as RedactionStrategy] : []
 }
 
 const saasLabels: Record<string, string> = {
@@ -36,9 +53,10 @@ function displayNameFor(resourceId: string, given?: string): string {
 /**
  * Read-only "this deletion will also touch" panel -- fetches the same
  * registry data the Registry page shows, no new backend needed. Every
- * declared resource with sourceRedactionStrategy !== 'NONE' gets its
- * source table touched on deletion (see chameleon-key-vault's
- * SourceRedactionService); every hubspot/salesforce resource is wiped via
+ * declared resource with at least one source-redaction strategy set gets
+ * its source table touched on deletion (see chameleon-key-vault's
+ * SourceRedactionService) -- independently combinable, so a resource can
+ * show more than one label; every hubspot/salesforce resource is wiped via
  * the existing SaaS cascade regardless of that field, which is
  * BigQuery-specific. Same set for any user in the tenant, so this loads
  * once and isn't scoped to whatever userId is currently typed in.
@@ -65,12 +83,12 @@ export function AffectedResourcesPanel() {
             saas.add(system)
             continue
           }
-          const strategy = r.sourceRedactionStrategy ?? r.source_redaction_strategy
-          if (strategy === 'REDACT_IN_PLACE' || strategy === 'SHADOW_COPY') {
+          const strategies = resolveStrategies(r)
+          if (strategies.length > 0) {
             sources.push({
               resourceId,
               displayName: displayNameFor(resourceId, r.displayName ?? r.display_name),
-              strategy,
+              strategies,
             })
           }
         }
@@ -103,7 +121,10 @@ export function AffectedResourcesPanel() {
             title={source.resourceId}
             className="inline-flex items-center rounded bg-blue-100 px-2 py-0.5 font-mono text-xs text-blue-800"
           >
-            {source.displayName} <span className="ml-1 text-blue-500">({strategyLabels[source.strategy]})</span>
+            {source.displayName}{' '}
+            <span className="ml-1 text-blue-500">
+              ({source.strategies.map((s) => strategyLabels[s]).join(', ')})
+            </span>
           </span>
         ))}
         {saasSystems.map((system) => (
