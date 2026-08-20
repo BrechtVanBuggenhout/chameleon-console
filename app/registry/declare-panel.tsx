@@ -16,9 +16,12 @@ const CLASSIFICATIONS = [
 ] as const
 const HANDLINGS = ['ENCRYPT', 'TOKENIZE', 'REDACT', 'HASH_SURROGATE', 'ALLOW_AGGREGATE_ONLY', 'MANUAL_REVIEW'] as const
 const STRATEGIES = ['CRYPTO_SHRED', 'DELETE_ROWS', 'REDACT_FIELDS', 'EXTERNAL_WIPE', 'MANUAL_REVIEW'] as const
-const SOURCE_REDACTION_STRATEGIES = ['NONE', 'REDACT_IN_PLACE', 'SHADOW_COPY'] as const
+// 'NONE' is deliberately excluded here -- it was the old single-select's
+// "nothing" value; with a checkbox group, nothing checked already means
+// exactly that (see sourceRedactionStrategies below).
+const SOURCE_REDACTION_STRATEGIES = ['REDACT_IN_PLACE', 'SHADOW_COPY', 'ENCRYPTED_COPY'] as const
 
-/** Table name portion of a `system:project.dataset.table` resource ID, for the SHADOW_COPY preview name. */
+/** Table name portion of a `system:project.dataset.table` resource ID, for the SHADOW_COPY/ENCRYPTED_COPY preview names. */
 function tableNameFrom(resourceId: string): string | null {
   const afterColon = resourceId.split(':')[1]
   if (!afterColon) return null
@@ -40,7 +43,9 @@ export type DeclareInitial = {
   userIdColumn?: string
   updatedAtColumn?: string
   deletionStrategy?: string
+  /** @deprecated Present only on entries declared before sourceRedactionStrategies existed; read as a one-item fallback. */
   sourceRedactionStrategy?: string
+  sourceRedactionStrategies?: string[]
   ghostDataScanEnabled?: boolean
   piiFields?: Field[]
 }
@@ -85,17 +90,18 @@ const HANDLING_HELP: Record<string, string> = {
 }
 
 const SOURCE_REDACTION_LABELS: Record<string, string> = {
-  NONE: 'Leave the source table as-is',
   REDACT_IN_PLACE: 'Redact in place on deletion',
   SHADOW_COPY: 'Maintain a de-identified copy',
+  ENCRYPTED_COPY: 'Maintain an encrypted copy for downstream modeling',
 }
 
 /** Only meaningful for a table you don't own the ingestion pipeline for — crypto-shredding
- * already fully protects the copy Chameleon holds regardless of which option is chosen. */
+ * already fully protects the copy Chameleon holds regardless of which options are chosen.
+ * Independently combinable: a resource can check any subset of these three (or none). */
 const SOURCE_REDACTION_HELP: Record<string, string> = {
-  NONE: "Chameleon's crypto-shred still fully protects its own copy of this data — this table's original plaintext is simply left as you already had it.",
   REDACT_IN_PLACE: "On deletion, Chameleon nulls out exactly these declared columns directly in this table — never deletes rows, never touches any other column. Requires write access to this table.",
   SHADOW_COPY: "This table is never touched. Instead Chameleon maintains a live view alongside it that mirrors it with these columns decrypted on the fly — a user's data drops out of that view automatically the moment their key is destroyed, no separate cleanup step needed.",
+  ENCRYPTED_COPY: "This table is never touched. Instead Chameleon maintains a physical table alongside it holding ciphertext instead of plaintext for these columns — safe for downstream dbt models to build on without ever touching raw PII. A user's row is genuinely deleted from it (not just hidden) once their key is destroyed.",
 }
 
 export function DeclarePanel({
@@ -116,6 +122,7 @@ export function DeclarePanel({
   const [issues, setIssues] = useState<string[]>([])
   const [success, setSuccess] = useState<string | null>(null)
   const [shadowCopyError, setShadowCopyError] = useState<string | null>(null)
+  const [encryptedCopyError, setEncryptedCopyError] = useState<string | null>(null)
   const [schemaColumns, setSchemaColumns] = useState<{ name: string; dataType: string }[] | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaError, setSchemaError] = useState<string | null>(null)
@@ -131,9 +138,22 @@ export function DeclarePanel({
   const [userIdColumn, setUserIdColumn] = useState(initial?.userIdColumn ?? 'user_id')
   const [updatedAtColumn, setUpdatedAtColumn] = useState(initial?.updatedAtColumn ?? '')
   const [deletionStrategy, setDeletionStrategy] = useState<string>(initial?.deletionStrategy ?? 'CRYPTO_SHRED')
-  const [sourceRedactionStrategy, setSourceRedactionStrategy] = useState<string>(
-    initial?.sourceRedactionStrategy ?? 'NONE'
+  // Array field wins if present; else fall back to wrapping the legacy
+  // singular field (dropping 'NONE') -- mirrors chameleon-key-vault's
+  // resolveSourceRedactionStrategies(), so an entry declared before the
+  // array field existed still shows its real checked state here.
+  const [sourceRedactionStrategies, setSourceRedactionStrategies] = useState<string[]>(
+    initial?.sourceRedactionStrategies ??
+      (initial?.sourceRedactionStrategy && initial.sourceRedactionStrategy !== 'NONE'
+        ? [initial.sourceRedactionStrategy]
+        : [])
   )
+
+  function toggleSourceRedactionStrategy(strategy: string, checked: boolean) {
+    setSourceRedactionStrategies((prev) =>
+      checked ? [...prev, strategy] : prev.filter((s) => s !== strategy)
+    )
+  }
   const [ghostScan, setGhostScan] = useState(initial?.ghostDataScanEnabled ?? true)
   const [fields, setFields] = useState<Field[]>(
     initial?.piiFields?.length
@@ -186,6 +206,7 @@ export function DeclarePanel({
     setIssues([])
     setSuccess(null)
     setShadowCopyError(null)
+    setEncryptedCopyError(null)
     try {
       const url = isEdit ? `/api/registry/resources/${encodeURIComponent(resourceId)}` : '/api/registry/resources'
       const res = await fetch(url, {
@@ -202,7 +223,7 @@ export function DeclarePanel({
           // previously-set value, not just leave the old one in place.
           updatedAtColumn: updatedAtColumn || '',
           deletionStrategy,
-          sourceRedactionStrategy,
+          sourceRedactionStrategies,
           ghostDataScan: { enabled: ghostScan },
           piiFields: fields.filter((f) => f.name.trim()),
         }),
@@ -222,6 +243,7 @@ export function DeclarePanel({
       // a SHADOW_COPY view failure is reported separately rather than as a
       // declaration error, since one didn't actually happen.
       if (typeof data.shadowCopyError === 'string') setShadowCopyError(data.shadowCopyError)
+      if (typeof data.encryptedCopyError === 'string') setEncryptedCopyError(data.encryptedCopyError)
       router.refresh()
       onDeclared?.()
     } catch {
@@ -367,7 +389,7 @@ export function DeclarePanel({
                   <label className={labelCls}>User ID column</label>
                   <input className={inputCls} value={userIdColumn} onChange={(e) => setUserIdColumn(e.target.value)} />
                   <p className={helpCls}>
-                    {`Required if using Crypto shred${sourceRedactionStrategy !== 'NONE' ? ', or the source redaction option below,' : ''} — the column that scopes rows to one user's key.`}
+                    {`Required if using Crypto shred${sourceRedactionStrategies.length > 0 ? ', or any of the source-table options below,' : ''} — the column that scopes rows to one user's key.`}
                   </p>
                 </div>
               </div>
@@ -405,30 +427,39 @@ export function DeclarePanel({
 
               <div>
                 <label className={labelCls}>What happens to this table on deletion</label>
-                <select
-                  className={inputCls}
-                  value={sourceRedactionStrategy}
-                  onChange={(e) => setSourceRedactionStrategy(e.target.value)}
-                >
-                  {SOURCE_REDACTION_STRATEGIES.map((s) => (
-                    <option key={s} value={s}>
-                      {SOURCE_REDACTION_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-                <p className={helpCls}>
-                  {SOURCE_REDACTION_HELP[sourceRedactionStrategy]}
-                  {sourceRedactionStrategy === 'SHADOW_COPY' && tableNameFrom(resourceId) && (
-                    <>
-                      {' '}
-                      Exposed here as{' '}
-                      <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] text-gray-700">
-                        {tableNameFrom(resourceId)}_deidentified
-                      </code>
-                      , alongside this table.
-                    </>
-                  )}
-                </p>
+                <p className={`${helpCls} mb-1.5`}>Independently combinable — check any subset, including none.</p>
+                <div className="space-y-2.5">
+                  {SOURCE_REDACTION_STRATEGIES.map((s) => {
+                    const checked = sourceRedactionStrategies.includes(s)
+                    const previewSuffix = s === 'SHADOW_COPY' ? '_deidentified' : s === 'ENCRYPTED_COPY' ? '_encrypted' : null
+                    return (
+                      <div key={s}>
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => toggleSourceRedactionStrategy(s, e.target.checked)}
+                          />
+                          {SOURCE_REDACTION_LABELS[s]}
+                        </label>
+                        <p className={`${helpCls} ml-6`}>
+                          {SOURCE_REDACTION_HELP[s]}
+                          {checked && previewSuffix && tableNameFrom(resourceId) && (
+                            <>
+                              {' '}
+                              Exposed here as{' '}
+                              <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] text-gray-700">
+                                {tableNameFrom(resourceId)}
+                                {previewSuffix}
+                              </code>
+                              , alongside this table.
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               <div>
@@ -510,6 +541,11 @@ export function DeclarePanel({
               {shadowCopyError && (
                 <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
                   Declared, but the de-identified copy couldn&apos;t be created: {shadowCopyError}
+                </div>
+              )}
+              {encryptedCopyError && (
+                <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Declared, but the encrypted copy couldn&apos;t be created: {encryptedCopyError}
                 </div>
               )}
 
