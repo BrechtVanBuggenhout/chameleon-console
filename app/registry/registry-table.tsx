@@ -89,6 +89,8 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
         tenantIdColumn: r.tenantIdColumn,
         userIdColumn: r.userIdColumn,
         updatedAtColumn: r.updatedAtColumn,
+        pubsubAllowedCallerServiceAccount: r.pubsubAllowedCallerServiceAccount,
+        userIdFieldPath: r.userIdFieldPath,
         deletionStrategy: r.deletionStrategy,
         sourceRedactionStrategy: r.sourceRedactionStrategy,
         sourceRedactionStrategies: r.sourceRedactionStrategies,

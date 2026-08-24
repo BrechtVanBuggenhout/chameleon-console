@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TENANT_ID } from '@/lib/tenant'
+import { PUBSUB_INGEST_BASE_URL } from '@/lib/pubsub-ingest'
 
-const SYSTEMS = ['bigquery', 'gcs', 'firestore', 'log', 'hubspot', 'salesforce', 'external'] as const
+const SYSTEMS = ['bigquery', 'gcs', 'firestore', 'log', 'hubspot', 'salesforce', 'external', 'pubsub'] as const
 const LAYERS = ['RAW', 'STAGING', 'INTERMEDIATE', 'MART', 'SAAS'] as const
 const CLASSIFICATIONS = [
   'DIRECT_IDENTIFIER',
@@ -42,6 +43,10 @@ export type DeclareInitial = {
   tenantIdColumn?: string
   userIdColumn?: string
   updatedAtColumn?: string
+  /** system: 'pubsub' only -- the numeric unique ID (JWT `sub`, never email) of the service account the customer's push subscription authenticates as. */
+  pubsubAllowedCallerServiceAccount?: string
+  /** system: 'pubsub' only -- dotted JSON path to the user id within each pushed message, e.g. "after.user_id". */
+  userIdFieldPath?: string
   deletionStrategy?: string
   /** @deprecated Present only on entries declared before sourceRedactionStrategies existed; read as a one-item fallback. */
   sourceRedactionStrategy?: string
@@ -137,6 +142,10 @@ export function DeclarePanel({
   const [tenantIdColumn, setTenantIdColumn] = useState(initial?.tenantIdColumn ?? 'tenant_id')
   const [userIdColumn, setUserIdColumn] = useState(initial?.userIdColumn ?? 'user_id')
   const [updatedAtColumn, setUpdatedAtColumn] = useState(initial?.updatedAtColumn ?? '')
+  const [pubsubAllowedCallerServiceAccount, setPubsubAllowedCallerServiceAccount] = useState(
+    initial?.pubsubAllowedCallerServiceAccount ?? ''
+  )
+  const [userIdFieldPath, setUserIdFieldPath] = useState(initial?.userIdFieldPath ?? 'after.user_id')
   const [deletionStrategy, setDeletionStrategy] = useState<string>(initial?.deletionStrategy ?? 'CRYPTO_SHRED')
   // Array field wins if present; else fall back to wrapping the legacy
   // singular field (dropping 'NONE') -- mirrors chameleon-key-vault's
@@ -222,6 +231,8 @@ export function DeclarePanel({
           // stripped -- the backend needs to see it to actually delete a
           // previously-set value, not just leave the old one in place.
           updatedAtColumn: updatedAtColumn || '',
+          pubsubAllowedCallerServiceAccount: pubsubAllowedCallerServiceAccount || undefined,
+          userIdFieldPath: userIdFieldPath || undefined,
           deletionStrategy,
           sourceRedactionStrategies,
           ghostDataScan: { enabled: ghostScan },
@@ -296,7 +307,7 @@ export function DeclarePanel({
                 <div className="mt-1 flex gap-2">
                   <input
                     className={`${inputCls} mt-0 flex-1 font-mono ${isEdit ? 'bg-gray-50 text-gray-500' : ''}`}
-                    placeholder="bigquery:project.dataset.table"
+                    placeholder={system === 'pubsub' ? 'pubsub:project.topic' : 'bigquery:project.dataset.table'}
                     value={resourceId}
                     onChange={(e) => {
                       setResourceId(e.target.value)
@@ -379,20 +390,66 @@ export function DeclarePanel({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Tenant ID column</label>
-                  <input className={inputCls} value={tenantIdColumn} onChange={(e) => setTenantIdColumn(e.target.value)} />
-                  <p className={helpCls}>Required for warehouse resources — the column that scopes rows to a tenant.</p>
+              {system === 'pubsub' ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelCls}>Allowed caller (service account unique ID)</label>
+                    <input
+                      className={`${inputCls} font-mono`}
+                      placeholder="123456789012345678901"
+                      value={pubsubAllowedCallerServiceAccount}
+                      onChange={(e) => setPubsubAllowedCallerServiceAccount(e.target.value)}
+                    />
+                    <p className={helpCls}>
+                      The numeric unique ID (not the email) of the service account your push subscription authenticates
+                      as — Chameleon verifies every push&apos;s ID token against this. Find it via{' '}
+                      <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] text-gray-700">
+                        gcloud iam service-accounts describe &lt;email&gt; --format=&quot;value(uniqueId)&quot;
+                      </code>
+                      .
+                    </p>
+                  </div>
+                  <div>
+                    <label className={labelCls}>User ID field path</label>
+                    <input
+                      className={`${inputCls} font-mono`}
+                      value={userIdFieldPath}
+                      onChange={(e) => setUserIdFieldPath(e.target.value)}
+                    />
+                    <p className={helpCls}>
+                      Dotted JSON path to the user id within each pushed message, e.g.{' '}
+                      <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] text-gray-700">after.user_id</code>{' '}
+                      for a typical CDC event shape.
+                    </p>
+                  </div>
+                  {resourceId.trim() && (
+                    <div>
+                      <label className={labelCls}>Push endpoint</label>
+                      <p className={`${inputCls} break-all bg-gray-50 font-mono text-xs text-gray-700`}>
+                        {PUBSUB_INGEST_BASE_URL
+                          ? `${PUBSUB_INGEST_BASE_URL}/pubsub-ingest/${encodeURIComponent(resourceId)}`
+                          : '(NEXT_PUBLIC_PUBSUB_INGEST_BASE_URL not configured for this console)'}
+                      </p>
+                      <p className={helpCls}>Point your Pub/Sub push subscription at this URL.</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className={labelCls}>User ID column</label>
-                  <input className={inputCls} value={userIdColumn} onChange={(e) => setUserIdColumn(e.target.value)} />
-                  <p className={helpCls}>
-                    {`Required if using Crypto shred${sourceRedactionStrategies.length > 0 ? ', or any of the source-table options below,' : ''} — the column that scopes rows to one user's key.`}
-                  </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Tenant ID column</label>
+                    <input className={inputCls} value={tenantIdColumn} onChange={(e) => setTenantIdColumn(e.target.value)} />
+                    <p className={helpCls}>Required for warehouse resources — the column that scopes rows to a tenant.</p>
+                  </div>
+                  <div>
+                    <label className={labelCls}>User ID column</label>
+                    <input className={inputCls} value={userIdColumn} onChange={(e) => setUserIdColumn(e.target.value)} />
+                    <p className={helpCls}>
+                      {`Required if using Crypto shred${sourceRedactionStrategies.length > 0 ? ', or any of the source-table options below,' : ''} — the column that scopes rows to one user's key.`}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {system === 'bigquery' && (
                 <div>
@@ -425,6 +482,7 @@ export function DeclarePanel({
                 </div>
               )}
 
+              {system === 'bigquery' && (
               <div>
                 <label className={labelCls}>What happens to this table on deletion</label>
                 <p className={`${helpCls} mb-1.5`}>Independently combinable — check any subset, including none.</p>
@@ -461,6 +519,7 @@ export function DeclarePanel({
                   })}
                 </div>
               </div>
+              )}
 
               <div>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -488,7 +547,7 @@ export function DeclarePanel({
                     <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
                       <input
                         className={`${inputCls} mt-0 font-mono`}
-                        placeholder="column"
+                        placeholder={system === 'pubsub' ? 'field path (e.g. after.email)' : 'column'}
                         value={field.name}
                         onChange={(e) => updateField(i, { name: e.target.value })}
                       />
