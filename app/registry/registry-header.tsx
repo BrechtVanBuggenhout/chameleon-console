@@ -16,7 +16,13 @@ type DiscoveryFinding = {
   lastSeen: string
 }
 
-export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
+export function RegistryHeader({
+  resourceCount,
+  pubsubIngestBaseUrl,
+}: {
+  resourceCount: number
+  pubsubIngestBaseUrl: string
+}) {
   const [open, setOpen] = useState(false)
   const [initial, setInitial] = useState<DeclareInitial | undefined>(undefined)
   const [panelKey, setPanelKey] = useState(0)
@@ -167,7 +173,13 @@ export function RegistryHeader({ resourceCount }: { resourceCount: number }) {
       )}
 
       {open && (
-        <DeclarePanel key={panelKey} initial={initial} onClose={() => setOpen(false)} onDeclared={refreshFindings} />
+        <DeclarePanel
+          key={panelKey}
+          initial={initial}
+          onClose={() => setOpen(false)}
+          onDeclared={refreshFindings}
+          pubsubIngestBaseUrl={pubsubIngestBaseUrl}
+        />
       )}
     </>
   )

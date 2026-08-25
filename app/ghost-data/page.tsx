@@ -189,7 +189,16 @@ export default function GhostDataPage() {
       )}
 
       {panelOpen && (
-        <DeclarePanel key={panelKey} initial={panelInitial} onClose={() => setPanelOpen(false)} onDeclared={handleDeclared} />
+        <DeclarePanel
+          key={panelKey}
+          initial={panelInitial}
+          onClose={() => setPanelOpen(false)}
+          onDeclared={handleDeclared}
+          // Findings here only ever come from the BigQuery warehouse crawler
+          // (system: 'pubsub' is never a ghost-data finding), and this route
+          // has no server component to resolve the real value from anyway.
+          pubsubIngestBaseUrl=""
+        />
       )}
     </div>
   )
