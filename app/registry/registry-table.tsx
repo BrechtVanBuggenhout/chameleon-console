@@ -26,7 +26,13 @@ const classificationStyles: Record<Classification, string> = {
   LOW: 'text-gray-500',
 }
 
-export function RegistryTable({ resources }: { resources: RegistryResource[] }) {
+export function RegistryTable({
+  resources,
+  pubsubIngestBaseUrl,
+}: {
+  resources: RegistryResource[]
+  pubsubIngestBaseUrl: string
+}) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [editInitial, setEditInitial] = useState<DeclareInitial | undefined>(undefined)
@@ -266,6 +272,7 @@ export function RegistryTable({ resources }: { resources: RegistryResource[] }) 
           isEdit
           onClose={() => setEditOpen(false)}
           onDeclared={() => setEditOpen(false)}
+          pubsubIngestBaseUrl={pubsubIngestBaseUrl}
         />
       )}
     </>

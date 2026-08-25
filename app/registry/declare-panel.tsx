@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TENANT_ID } from '@/lib/tenant'
-import { PUBSUB_INGEST_BASE_URL } from '@/lib/pubsub-ingest'
 
 const SYSTEMS = ['bigquery', 'gcs', 'firestore', 'log', 'hubspot', 'salesforce', 'external', 'pubsub'] as const
 const LAYERS = ['RAW', 'STAGING', 'INTERMEDIATE', 'MART', 'SAAS'] as const
@@ -114,12 +113,15 @@ export function DeclarePanel({
   isEdit,
   onClose,
   onDeclared,
+  pubsubIngestBaseUrl,
 }: {
   initial?: DeclareInitial
   /** True when editing an existing declaration — locks the resource ID and PUTs instead of POSTs. */
   isEdit?: boolean
   onClose: () => void
   onDeclared?: () => void
+  /** Base URL of the Pub/Sub Ingest worker, resolved server-side and passed down (see app/registry/page.tsx) — '' when not configured/enabled. */
+  pubsubIngestBaseUrl: string
 }) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
@@ -426,9 +428,9 @@ export function DeclarePanel({
                     <div>
                       <label className={labelCls}>Push endpoint</label>
                       <p className={`${inputCls} break-all bg-gray-50 font-mono text-xs text-gray-700`}>
-                        {PUBSUB_INGEST_BASE_URL
-                          ? `${PUBSUB_INGEST_BASE_URL}/pubsub-ingest/${encodeURIComponent(resourceId)}`
-                          : '(NEXT_PUBLIC_PUBSUB_INGEST_BASE_URL not configured for this console)'}
+                        {pubsubIngestBaseUrl
+                          ? `${pubsubIngestBaseUrl}/pubsub-ingest/${encodeURIComponent(resourceId)}`
+                          : '(PUBSUB_INGEST_BASE_URL not configured for this console)'}
                       </p>
                       <p className={helpCls}>Point your Pub/Sub push subscription at this URL.</p>
                     </div>
