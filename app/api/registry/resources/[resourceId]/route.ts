@@ -67,9 +67,18 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
 
   const { resourceId } = await params
 
+  // No body on a DELETE -- Content-Type: application/json (from
+  // writeHeaders, shared with PUT which does have a body) paired with an
+  // empty body trips Key Vault's Fastify server's strict content-type/body
+  // check (FST_ERR_CTP_EMPTY_JSON_BODY), so this request has never actually
+  // succeeded against a real deployment. Strip it here rather than adding a
+  // body no one reads.
+  const headers = await writeHeaders(context)
+  delete headers['Content-Type']
+
   const res = await fetch(`${context.vaultBaseUrl}/pii-registry/resources/${encodeURIComponent(resourceId)}`, {
     method: 'DELETE',
-    headers: await writeHeaders(context),
+    headers,
   })
 
   const data = await res.json()
