@@ -84,7 +84,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.INFRA_VARS_WRITE_TOKEN }}
           IMAGE_URI: ${{ vars.CONSOLE_ARTIFACT_REPOSITORY_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        run: gh variable set CONSOLE_IMAGE_DEV --repo BrechtVanBuggenhout/chameleon-infra-gcp --body "${IMAGE_URI}"
+        run: gh variable set CONSOLE_IMAGE_DEV --repo BrechtVanBuggenhout/chameleon-infra-gcp --env terraform-dev --body "${IMAGE_URI}"
 
   deploy-prod:
     name: Deploy to prod
@@ -147,4 +147,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.INFRA_VARS_WRITE_TOKEN }}
           IMAGE_URI: ${{ vars.CONSOLE_ARTIFACT_REPOSITORY_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        run: gh variable set CONSOLE_IMAGE_PROD --repo BrechtVanBuggenhout/chameleon-infra-gcp --body "${IMAGE_URI}"
+        run: gh variable set CONSOLE_IMAGE_PROD --repo BrechtVanBuggenhout/chameleon-infra-gcp --env terraform-prod --body "${IMAGE_URI}"
