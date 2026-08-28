@@ -75,6 +75,17 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ vars.CONSOLE_ARTIFACT_REPOSITORY_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      # Terraform tracks this same image separately (console_image) to serve
+      # self-hosting customers' scripts/update.sh pinning flow. Since this
+      # pipeline deploys straight to Cloud Run and bypasses Terraform, keep
+      # infra-gcp's record in sync after every successful deploy so a later,
+      # unrelated `terraform apply` doesn't revert this deploy.
+      - name: Record deployed image in infra-gcp
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_VARS_WRITE_TOKEN }}
+          IMAGE_URI: ${{ vars.CONSOLE_ARTIFACT_REPOSITORY_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: gh variable set CONSOLE_IMAGE_DEV --repo BrechtVanBuggenhout/chameleon-infra-gcp --body "${IMAGE_URI}"
+
   deploy-prod:
     name: Deploy to prod
     runs-on: ubuntu-latest
@@ -130,3 +141,10 @@ jobs:
           service: ${{ vars.CONSOLE_CLOUD_RUN_SERVICE_NAME }}
           region: ${{ env.REGION }}
           image: ${{ vars.CONSOLE_ARTIFACT_REPOSITORY_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      # See deploy-dev's matching step above for why this exists.
+      - name: Record deployed image in infra-gcp
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_VARS_WRITE_TOKEN }}
+          IMAGE_URI: ${{ vars.CONSOLE_ARTIFACT_REPOSITORY_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: gh variable set CONSOLE_IMAGE_PROD --repo BrechtVanBuggenhout/chameleon-infra-gcp --body "${IMAGE_URI}"
