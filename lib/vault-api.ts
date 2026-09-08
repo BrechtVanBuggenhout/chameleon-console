@@ -237,8 +237,6 @@ export async function getCoverage(): Promise<CoverageReport> {
   }
 }
 
-const DEMO_USER_IDS = ['usr-001', 'usr-002', 'usr-003', 'usr-004', 'usr-005']
-
 // Chameleon's own crypto-shred mechanism is unconditionally backup-immune
 // regardless of when a certificate was issued -- only the per-resource
 // source-redaction detail is new. Used when a REAL certificate (on a live
@@ -304,13 +302,14 @@ async function parseCertificate(userId: string, data: Record<string, unknown>): 
 }
 
 export async function findLatestCertificate(): Promise<{ proof: typeof proofFixture; userId: string } | null> {
-  for (const uid of DEMO_USER_IDS) {
-    const data = await kvFetch(`/certificate/${uid}`)
-    if (data && data.certificate) {
-      return { proof: await parseCertificate(uid, data as Record<string, unknown>), userId: uid }
-    }
-  }
-  return null
+  // A real query (GET /certificate/latest, Key Vault#86) -- this used to
+  // probe 5 hardcoded demo IDs (usr-001..005) and show whichever one it
+  // found first, so a real customer with real certificates saw "no
+  // certificates yet" regardless of their real history, and dev could
+  // coincidentally show a demo cert instead of the one actually wanted.
+  const data = await kvFetch('/certificate/latest')
+  if (!data || !data.certificate || typeof data.userId !== 'string') return null
+  return { proof: await parseCertificate(data.userId, data as Record<string, unknown>), userId: data.userId }
 }
 
 export async function getCertificate(userId: string): Promise<typeof proofFixture | null> {
@@ -382,19 +381,28 @@ export async function getAuditEventsForActor(email: string): Promise<AuditEvent[
 }
 
 export async function getOverview() {
-  const [resources, policy, ghostFindings] = await Promise.all([
+  const [resources, policy, ghostFindings, latestCertificate] = await Promise.all([
     getRegistryResources(),
     getPolicy(),
     getDiscoveryFindings(),
+    findLatestCertificate(),
   ])
   return {
     registryCount: resources.length,
     policyStatus: policy.status,
     ghostFindingCount: ghostFindings.length,
-    // A real instance has no reliable "most recent deletion" endpoint to
-    // call here (findLatestCertificate only probes hardcoded demo IDs) — so
-    // rather than guess, this is a real "nothing yet" until that's built.
-    lastDeletionProof: (await hasLiveBackend()) ? null : overviewFixture.lastDeletionProof,
+    // Now a real query (GET /certificate/latest, Key Vault#86) instead of
+    // the old hardcoded-demo-ID probe -- see findLatestCertificate. A real
+    // instance with no certificates issued yet still correctly gets null
+    // here, not the fixture: findLatestCertificate only ever falls back to
+    // the fixture when there's no live backend configured at all.
+    lastDeletionProof: latestCertificate
+      ? {
+          userId: latestCertificate.userId,
+          timestamp: latestCertificate.proof.certificate.issuedAt,
+          status: latestCertificate.proof.certificate.status,
+        }
+      : (await hasLiveBackend()) ? null : overviewFixture.lastDeletionProof,
     _resources: resources,
     _policyStatus: policy.status,
   }
