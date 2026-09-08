@@ -169,6 +169,51 @@ export default async function ProofPage({
         </ul>
       </div>
 
+      {/* Backup immunity -- a separate, strategy-aware claim from the section
+          above: whether backups of a resource's data are immune to recovering
+          this user's PII, which is unconditionally true for Chameleon's own
+          crypto-shred mechanism but NOT uniformly true for a manually-declared
+          source table, depending which redaction strategy it opted into. See
+          chameleon-key-vault's CertificateSigner.generateClaims. */}
+      <div className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 px-5 py-4">
+          <h2 className="text-sm font-semibold text-gray-900">Backup immunity</h2>
+        </div>
+        <div className="space-y-3 px-5 py-4 text-sm text-gray-700">
+          <p>
+            Chameleon&apos;s own encrypted copy — and every automated system checked above — is backup-immune:
+            deleting the key makes every backup snapshot of it unreadable, at any age.
+          </p>
+          {certificate.backupImmunity.sourceRedactionExceptions.length > 0 ? (
+            <ul className="space-y-3">
+              {certificate.backupImmunity.sourceRedactionExceptions.map((item) => (
+                <li key={`${item.resourceId}::${item.strategy}`} className="rounded border border-gray-100 bg-gray-50 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-gray-900">{item.resourceId}</span>
+                    <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600">{item.strategy}</span>
+                    {item.backupImmune ? (
+                      <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">Backup-immune</span>
+                    ) : item.immuneAsOf ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                        Not yet backup-immune — becomes immune {formatTs(item.immuneAsOf)}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">
+                        Not backup-immune for this source table, at any age
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{item.reason}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-gray-500">No source-redaction exceptions for this deletion.</p>
+          )}
+          <p className="text-xs text-gray-500">{certificate.backupImmunity.timeTravelCaveat}</p>
+        </div>
+      </div>
+
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Certificate */}
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
