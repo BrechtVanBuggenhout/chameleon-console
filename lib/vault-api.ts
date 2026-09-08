@@ -239,6 +239,19 @@ export async function getCoverage(): Promise<CoverageReport> {
 
 const DEMO_USER_IDS = ['usr-001', 'usr-002', 'usr-003', 'usr-004', 'usr-005']
 
+// Chameleon's own crypto-shred mechanism is unconditionally backup-immune
+// regardless of when a certificate was issued -- only the per-resource
+// source-redaction detail is new. Used when a REAL certificate (on a live
+// backend) simply predates this field, so a real cert never falls back to
+// proofFixture's demo resource IDs (support_tickets/marketing.leads) as if
+// they were this user's actual data -- see the comment at its one call site.
+const BACKUP_IMMUNITY_UNKNOWN_FALLBACK = {
+  cryptoShredCoverage: 'BACKUP_IMMUNE' as const,
+  sourceRedactionExceptions: [] as typeof proofFixture.certificate.backupImmunity.sourceRedactionExceptions,
+  timeTravelCeilingHours: 168 as const,
+  timeTravelCaveat: proofFixture.certificate.backupImmunity.timeTravelCaveat,
+}
+
 async function parseCertificate(userId: string, data: Record<string, unknown>): Promise<typeof proofFixture> {
   const jwt = String(data.certificate ?? data.jwt ?? '')
   let claims: Record<string, unknown> = {}
@@ -250,6 +263,17 @@ async function parseCertificate(userId: string, data: Record<string, unknown>): 
   const lineage = Array.isArray(claims.lineageSummary) ? claims.lineageSummary as { system: string }[] : []
   const affectedSystems = lineage.length ? lineage.map(l => l.system) : (proofFixture.affectedSystems as string[])
   const lineageCoverage = claims.lineageCoverage as typeof proofFixture.certificate.lineageCoverage | undefined
+  const backupImmunity = claims.backupImmunity as typeof proofFixture.certificate.backupImmunity | undefined
+  // A real, already-issued certificate can genuinely lack this field --
+  // it's brand new, no certificate signed before today has it. Falling back
+  // to proofFixture's rich demo data here (as the other optional fields
+  // above do) would show a real customer fake resource IDs on their own
+  // real certificate. Fall back to the fixture only when there's truly no
+  // live backend at all (local dev); otherwise fall back to an honest
+  // "nothing known" default.
+  const backupImmunityFallback = (await hasLiveBackend())
+    ? BACKUP_IMMUNITY_UNKNOWN_FALLBACK
+    : proofFixture.certificate.backupImmunity
   const ghostDataSummary = claims.ghostDataSummary ?? claims.ghost_data_summary
   return {
     userId,
@@ -269,6 +293,7 @@ async function parseCertificate(userId: string, data: Record<string, unknown>): 
       keyDestructionStatus: String(claims.keyDestructionStatus ?? proofFixture.certificate.keyDestructionStatus),
       keyDestructionMethod: String(claims.keyDestructionMethod ?? proofFixture.certificate.keyDestructionMethod) as 'DEK_ERASURE',
       lineageCoverage: lineageCoverage ?? proofFixture.certificate.lineageCoverage,
+      backupImmunity: backupImmunity ?? backupImmunityFallback,
       ghostDataSummary: Array.isArray(ghostDataSummary) ? ghostDataSummary as typeof proofFixture.certificate.ghostDataSummary : [],
       ghostDataScanCoverage: String(claims.ghostDataScanCoverage ?? proofFixture.certificate.ghostDataScanCoverage) as 'NOT_TRACKED',
       previousCertificateHash: (claims.previousCertificateHash as string | null | undefined) ?? null,

@@ -233,6 +233,30 @@ export const proofFixture = {
       destinationsSucceeded: 3,
       knownDestinationTypes: ['bigquery', 'hubspot', 'salesforce'],
     },
+    backupImmunity: {
+      cryptoShredCoverage: 'BACKUP_IMMUNE' as const,
+      sourceRedactionExceptions: [
+        {
+          resourceId: 'bigquery:acme_warehouse.crm.support_tickets',
+          strategy: 'REDACT_IN_PLACE' as const,
+          backupImmune: false,
+          redactedAt: '2026-09-05T14:00:00Z',
+          immuneAsOf: '2026-09-12T14:00:00Z',
+          reason:
+            "This table's plaintext was redacted in place, but BigQuery's maximum time-travel window (168h) has not yet elapsed since then -- the pre-redaction plaintext may still be queryable via BigQuery's own time-travel until then.",
+        },
+        {
+          resourceId: 'bigquery:acme_warehouse.marketing.leads',
+          strategy: 'SHADOW_COPY' as const,
+          backupImmune: false,
+          reason:
+            "This resource's source table was never modified -- only a live decrypted view was created alongside it. Backups of the source table are not covered by crypto-shred at any age.",
+        },
+      ],
+      timeTravelCeilingHours: 168 as const,
+      timeTravelCaveat:
+        "BigQuery also retains an additional Google-support-assisted \"fail-safe\" recovery window after this period ends, reachable only through Google's own recovery tooling, never a customer/self-service query. This claim covers self-service, customer-queryable recovery only.",
+    },
     ghostDataSummary: [] as { system: string; resourceId: string }[],
     ghostDataScanCoverage: 'NOT_TRACKED' as const,
     previousCertificateHash: 'sha256:9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a' as string | null,
