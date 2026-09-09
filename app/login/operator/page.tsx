@@ -1,12 +1,35 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { createHash, timingSafeEqual } from 'crypto'
+import { isRateLimited } from '@/lib/login-rate-limit'
+
+// Hash-then-compare rather than a direct timingSafeEqual on the raw values:
+// timingSafeEqual throws on a length mismatch, and checking length first is
+// itself a (smaller, but real) side channel -- hashing both to a fixed
+// 32-byte digest first sidesteps needing a length check at all.
+function passwordsMatch(a: string, b: string): boolean {
+  const hashA = createHash('sha256').update(a).digest()
+  const hashB = createHash('sha256').update(b).digest()
+  return timingSafeEqual(hashA, hashB)
+}
 
 async function login(formData: FormData) {
   'use server'
   const password = formData.get('password') as string
   const expected = process.env.CONSOLE_PASSWORD
 
-  if (!expected || password === expected) {
+  // Cloud Run's load balancer sets x-forwarded-for with the real client IP
+  // first -- the shared break-glass password had no throttle at all before
+  // this, making it a pure online-brute-forceable secret. Rate-limited by
+  // IP, not by attempted password, so this can't be bypassed by varying the
+  // guess.
+  const headerList = await headers()
+  const clientIp = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  if (isRateLimited(clientIp)) {
+    redirect('/login/operator?error=rate_limited')
+  }
+
+  if (!expected || passwordsMatch(password, expected)) {
     const cookieStore = await cookies()
     cookieStore.set('console_auth', password || '__open__', {
       httpOnly: true,
@@ -46,7 +69,12 @@ export default async function OperatorLoginPage({
 
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <form action={login} className="px-6 py-6">
-            {error && (
+            {error === 'rate_limited' && (
+              <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                Too many attempts. Wait a few minutes before trying again.
+              </div>
+            )}
+            {error && error !== 'rate_limited' && (
               <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 Incorrect password. Please try again.
               </div>
