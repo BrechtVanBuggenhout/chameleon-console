@@ -137,7 +137,11 @@ export function DeclarePanel({
   // State is seeded once from `initial`; the parent remounts via `key` to re-seed
   // (avoids a set-state-in-effect sync). Pre-fills from a discovery finding, or from
   // the full existing entry when editing.
-  const [tenantId, setTenantId] = useState(initial?.tenantId ?? TENANT_ID)
+  // Read-only in the UI (see the Tenant ID field below) -- every real caller
+  // passes TENANT_ID here regardless of what's being edited, so this never
+  // actually reflects a resource's own tenant; kept as a plain constant
+  // rather than state now that nothing ever changes it.
+  const tenantId = initial?.tenantId ?? TENANT_ID
   const [resourceId, setResourceId] = useState(initial?.resourceId ?? '')
   const [system, setSystem] = useState<string>(initial?.system ?? 'bigquery')
   const [resourceLayer, setResourceLayer] = useState<string>(initial?.resourceLayer ?? 'RAW')
@@ -288,8 +292,11 @@ export function DeclarePanel({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Tenant ID</label>
-                  <input className={inputCls} value={tenantId} onChange={(e) => setTenantId(e.target.value)} />
-                  <p className={helpCls}>Which tenant this belongs to. Leave the default unless this Chameleon instance manages more than one.</p>
+                  <input className={`${inputCls} cursor-not-allowed bg-gray-50 text-gray-500`} value={tenantId} readOnly />
+                  <p className={helpCls}>
+                    Read-only — always this deployment&apos;s own tenant (same as everywhere else in the console; see
+                    lib/tenant.ts).
+                  </p>
                 </div>
                 <div>
                   <label className={labelCls}>System</label>
