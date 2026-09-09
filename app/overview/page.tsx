@@ -119,8 +119,8 @@ export default async function OverviewPage() {
               </td>
               <td className="px-5 py-3 text-sm text-gray-500">
                 {ghostFindingCount > 0
-                  ? `${ghostFindingCount} ghost finding${ghostFindingCount !== 1 ? 's' : ''} — undeclared PII detected by the warehouse scan`
-                  : 'Warehouse scan found no undeclared PII'}
+                  ? `${ghostFindingCount} ghost finding${ghostFindingCount !== 1 ? 's' : ''} — PII outside the registry, some content-confirmed`
+                  : 'No undeclared PII found — schema and content scans both clean'}
               </td>
             </tr>
             <tr>

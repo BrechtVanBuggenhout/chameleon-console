@@ -159,7 +159,15 @@ export default async function ProofPage({
             {' '}— this is not a claim of every system this user&apos;s data may ever have touched.
           </li>
           <li>{KEY_DESTRUCTION_METHOD_LABEL[certificate.keyDestructionMethod] ?? certificate.keyDestructionMethod}</li>
-          <li>{ghostDataScanSentence(certificate.ghostDataScanCoverage, certificate.ghostDataSummary)}</li>
+          <li>
+            {ghostDataScanSentence(certificate.ghostDataScanCoverage, certificate.ghostDataSummary)}
+            {' '}
+            <span className="text-gray-400">
+              (Residual findings are this same &ldquo;PII outside the registry&rdquo; concept as{' '}
+              <Link href="/ghost-data" className="underline hover:text-gray-600">Ghost Data</Link>, checked
+              specifically for this user, after deletion — not the tenant-wide, ongoing scan.)
+            </span>
+          </li>
           <li>
             Chain position{' '}
             {certificate.chainSequence !== null ? `#${certificate.chainSequence}` : 'unlinked (not added to the hash chain)'}
