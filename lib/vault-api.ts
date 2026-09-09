@@ -401,6 +401,35 @@ export async function getAuditEventsForActor(email: string): Promise<AuditEvent[
   return data.events as AuditEvent[]
 }
 
+export interface IncompleteDeletionRequest {
+  deletionRequestId: string
+  userId: string
+  status: string
+  createdAt: string
+  ageHours: number
+}
+
+export interface DeletionEvidenceReport {
+  tenantId: string
+  period: { from: string; to: string }
+  totalRequests: number
+  certificateIssued: number
+  incomplete: IncompleteDeletionRequest[]
+  partialFailures: number
+  medianTimeToCertificateHours: number | null
+  generatedAt: string
+}
+
+// No fixture fallback here, deliberately -- this is a new, narrow report
+// shape with no existing demo data to fabricate plausibly. A failed/
+// unconfigured call surfaces as null and the page shows a real error state,
+// same as it would for a real deployment with a real backend problem.
+export async function getDeletionEvidence(from: string, to: string): Promise<DeletionEvidenceReport | null> {
+  const data = await kvFetch(`/audit/deletion-evidence?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+  if (!data || typeof data.totalRequests !== 'number') return null
+  return data as DeletionEvidenceReport
+}
+
 export async function getOverview() {
   const [resources, policy, ghostFindings, contentFindings, latestCertificate] = await Promise.all([
     getRegistryResources(),
