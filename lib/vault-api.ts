@@ -339,10 +339,31 @@ export type DiscoveryFinding = {
   lastSeen: string
 }
 
+// Content-confirmed (Stage 2, path-level) findings -- a real PII value was
+// found at this exact JSON path, not just a suggestively-named column. See
+// app/ghost-data/page.tsx's own type comment for the full distinction from
+// DiscoveryFinding above.
+export type ContentConfirmedFinding = {
+  resourceId: string
+  columnName: string
+  jsonPath: string
+  classification: string
+  pattern: string
+  matchCount: number
+  sampledRows: number
+  scannedAt: string
+}
+
 export async function getDiscoveryFindings(): Promise<DiscoveryFinding[]> {
   const data = await kvFetch('/pii-registry/discovery')
   if (!data || !Array.isArray(data.findings)) return []
   return data.findings as DiscoveryFinding[]
+}
+
+export async function getContentConfirmedFindings(): Promise<ContentConfirmedFinding[]> {
+  const data = await kvFetch('/pii-registry/discovery')
+  if (!data || !Array.isArray(data.contentFindings)) return []
+  return data.contentFindings as ContentConfirmedFinding[]
 }
 
 export type DecryptedView = {
@@ -381,16 +402,21 @@ export async function getAuditEventsForActor(email: string): Promise<AuditEvent[
 }
 
 export async function getOverview() {
-  const [resources, policy, ghostFindings, latestCertificate] = await Promise.all([
+  const [resources, policy, ghostFindings, contentFindings, latestCertificate] = await Promise.all([
     getRegistryResources(),
     getPolicy(),
     getDiscoveryFindings(),
+    getContentConfirmedFindings(),
     findLatestCertificate(),
   ])
   return {
     registryCount: resources.length,
     policyStatus: policy.status,
-    ghostFindingCount: ghostFindings.length,
+    // Both tiers together -- see app/ghost-data/page.tsx's own totalFindings
+    // for why these are counted the same way there, even though they're
+    // never merged into one list (schema-level vs content-confirmed are
+    // different strengths of evidence, shown as separate sections).
+    ghostFindingCount: ghostFindings.length + contentFindings.length,
     // Now a real query (GET /certificate/latest, Key Vault#86) instead of
     // the old hardcoded-demo-ID probe -- see findLatestCertificate. A real
     // instance with no certificates issued yet still correctly gets null
