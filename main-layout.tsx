@@ -23,6 +23,18 @@ const navItems = [
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
+  async function logout() {
+    try {
+      await fetch('/api/logout', { method: 'POST' });
+    } finally {
+      // Full reload, not client-side navigation: proxy.ts re-checks the
+      // (now-cleared) auth cookie only on a real request, so a soft
+      // navigation here could briefly render a page from client-side
+      // cache before the redirect to /login actually lands.
+      window.location.href = '/login';
+    }
+  }
+
   return (
     <div className="flex h-full bg-gray-50">
       <aside className="flex w-60 flex-shrink-0 flex-col border-r border-gray-200 bg-white">
@@ -87,6 +99,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         <div className="border-t border-gray-100 p-3">
+          <button
+            type="button"
+            onClick={logout}
+            className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            <span>⏻</span>
+            Log out
+          </button>
           <a
             href="https://chameleon-data.com"
             target="_blank"
