@@ -14,15 +14,15 @@ const KEY_DESTRUCTION_METHOD_LABEL: Record<string, string> = {
     'Key destroyed via DEK erasure — the encryption key itself was destroyed instantly, not scheduled for deletion.',
 }
 
-function ghostDataScanSentence(coverage: string, findings: unknown[]) {
+function postDeletionTraceSentence(coverage: string, findings: unknown[]) {
   if (coverage === 'NOT_TRACKED') {
     return findings.length
-      ? `${findings.length} residual finding(s) recorded, but scan coverage isn't tracked yet — an empty result elsewhere would not mean "confirmed clean."`
-      : 'No residual findings recorded. Scan coverage isn’t tracked yet, so this is not the same as a confirmed clean scan.'
+      ? `${findings.length} post-deletion trace(s) recorded, but scan coverage isn't tracked yet — an empty result elsewhere would not mean "confirmed clean."`
+      : 'No post-deletion traces recorded. Scan coverage isn’t tracked yet, so this is not the same as a confirmed clean scan.'
   }
   return findings.length
-    ? `${findings.length} residual finding(s) found.`
-    : 'No residual findings.'
+    ? `${findings.length} post-deletion trace(s) found.`
+    : 'No post-deletion traces found.'
 }
 
 const eventStyles: Record<string, string> = {
@@ -160,10 +160,10 @@ export default async function ProofPage({
           </li>
           <li>{KEY_DESTRUCTION_METHOD_LABEL[certificate.keyDestructionMethod] ?? certificate.keyDestructionMethod}</li>
           <li>
-            {ghostDataScanSentence(certificate.ghostDataScanCoverage, certificate.ghostDataSummary)}
+            {postDeletionTraceSentence(certificate.ghostDataScanCoverage, certificate.ghostDataSummary)}
             {' '}
             <span className="text-gray-400">
-              (Residual findings are this same &ldquo;PII outside the registry&rdquo; concept as{' '}
+              (Post-deletion traces are this same &ldquo;PII outside the registry&rdquo; concept as{' '}
               <Link href="/ghost-data" className="underline hover:text-gray-600">Ghost Data</Link>, checked
               specifically for this user, after deletion — not the tenant-wide, ongoing scan.)
             </span>
