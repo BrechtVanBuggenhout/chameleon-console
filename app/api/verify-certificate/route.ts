@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const err = error as { code?: string; message?: string }
     let reason = err.message ?? 'Unknown error.'
-    if (err.code === 'ERR_JWT_SIGNATURE_VERIFICATION_FAILED') {
+    if (err.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
       reason = 'The signature does not match the public key — this certificate is not authentic, or has been tampered with.'
     } else if (err.code === 'ERR_JWKS_NO_MATCHING_KEY') {
       reason = 'No matching signing key found in the published JWKS (check the kid header).'

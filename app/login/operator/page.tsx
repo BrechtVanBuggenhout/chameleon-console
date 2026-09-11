@@ -1,17 +1,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createHash, timingSafeEqual } from 'crypto'
 import { isRateLimited } from '@/lib/login-rate-limit'
-
-// Hash-then-compare rather than a direct timingSafeEqual on the raw values:
-// timingSafeEqual throws on a length mismatch, and checking length first is
-// itself a (smaller, but real) side channel -- hashing both to a fixed
-// 32-byte digest first sidesteps needing a length check at all.
-function passwordsMatch(a: string, b: string): boolean {
-  const hashA = createHash('sha256').update(a).digest()
-  const hashB = createHash('sha256').update(b).digest()
-  return timingSafeEqual(hashA, hashB)
-}
+import { passwordsMatch } from '@/lib/password-compare'
 
 async function login(formData: FormData) {
   'use server'

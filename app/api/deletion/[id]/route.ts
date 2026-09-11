@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getActiveProjectContext, type ActiveProjectContext } from '@/lib/project-context'
+import { resolveWriteAuthHeaders } from '@/lib/session-credential'
 
 function authHeaders(context: ActiveProjectContext, extra: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra }
@@ -38,9 +39,19 @@ export async function POST(
   const { id } = await params
   const body = await req.json()
 
+  // Advancing a deletion request is a real mutation, same as creating one
+  // (app/api/deletion/route.ts) -- it needs the same per-session
+  // attribution via resolveWriteAuthHeaders, not just the static shared
+  // token this previously used unconditionally. Found and fixed while
+  // adding test coverage: creating a request was attributable, advancing
+  // one silently wasn't, with no comment marking that as intentional the
+  // way every other shared-token fallback in this codebase is.
+  const fallbackHeaders = authHeaders(context, { 'x-tenant-id': context.tenantId })
+  const headers = await resolveWriteAuthHeaders(context, fallbackHeaders)
+
   const res = await fetch(`${context.vaultBaseUrl}/deletion-requests/${id}/advance`, {
     method: 'POST',
-    headers: authHeaders(context, { 'x-tenant-id': context.tenantId }),
+    headers,
     body: JSON.stringify(body),
   })
 

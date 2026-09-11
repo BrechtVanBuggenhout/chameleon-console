@@ -250,7 +250,7 @@ const BACKUP_IMMUNITY_UNKNOWN_FALLBACK = {
   timeTravelCaveat: proofFixture.certificate.backupImmunity.timeTravelCaveat,
 }
 
-async function parseCertificate(userId: string, data: Record<string, unknown>): Promise<typeof proofFixture> {
+export async function parseCertificate(userId: string, data: Record<string, unknown>): Promise<typeof proofFixture> {
   const jwt = String(data.certificate ?? data.jwt ?? '')
   let claims: Record<string, unknown> = {}
   if (jwt) {
